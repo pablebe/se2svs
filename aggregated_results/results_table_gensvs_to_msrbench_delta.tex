@@ -1,0 +1,17 @@
+\begin{table}[ht]
+  \centering
+  \caption{SVS delta metrics from GenSVS to MSRBench (MSRBench - GenSVS) for selected SGM and BSRNN model variants. Bold values indicate the better model per row and metric ($\Delta$SDR: higher is better, $\Delta$MSE: lower is better).}
+  \resizebox{\columnwidth}{!}{%
+  \setlength{\tabcolsep}{4pt}%
+  \begin{tabular}{lrrrr}
+       & \multicolumn{2}{c}{\textbf{SGM}} & \multicolumn{2}{c}{\textbf{BSRNN}} \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    Model variant & $\Delta$ SDR & $\Delta$ MSE & $\Delta$ SDR & $\Delta$ MSE \\
+    \midrule
+    full finetuning & \textbf{1.62} & \textbf{-0.007} & 0.24 & -0.004 \\[5pt]
+    LoRA (rank 16) & \textbf{1.94} & \textbf{-0.009} & 0.74 & -0.001 \\[5pt]
+    from scratch & \textbf{1.94} & \textbf{-0.007} & 1.15 & -0.006 \\[5pt]
+    \bottomrule
+  \end{tabular}
+  }%
+\end{table}

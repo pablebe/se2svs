@@ -1,0 +1,15 @@
+*.pyc
+*.ckpt
+*.wav
+*.npy
+*.out
+*.csv
+*.flac
+
+.vscode/*
+logs/*
+lightning_logs/*
+wandb/*
+.DS_Store
+__pycache__/
+trash/*

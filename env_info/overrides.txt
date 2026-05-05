@@ -1,0 +1,4 @@
+# Override strict pins from espnet/gensvs — the working finetune_sgmse_env has these newer versions
+sentencepiece==0.2.1
+setuptools==80.10.2
+numpy==2.3.5

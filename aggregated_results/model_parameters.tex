@@ -1,0 +1,25 @@
+\begin{table}[ht]
+  \centering
+  \caption{Model parameter counts and complexity: total parameters (M), relative parameters added compared to the base model within each model family, and model complexity measured with ptflops in GMACs/s.}
+  \label{tab:model_parameters}
+  \resizebox{0.8\columnwidth}{!}{%
+  \setlength{\tabcolsep}{4pt}%
+  \begin{tabular}{llrrr}
+    \toprule
+    & Model & \shortstack[c]{Total\\Params\\{[M]}} & \shortstack[c]{Add.\\Params\\{[\%]}} & \shortstack[c]{Complexity\\{[GMACs/s]}} \\
+    \midrule
+    \multirow{4}{*}{\rotatebox[origin=c]{90}{\textbf{SG Models}}} & full finetuning & 64.74 & 0.00 & 399.64 \\
+     & LoRA (rank 16) & 69.76 & 7.75 & 895.07 \\
+     & from scratch & 64.74 & 0.00 & 399.64 \\
+     & base & 64.74 & 0.00 & 399.64 \\
+    \midrule
+    \multirow{6}{*}{\rotatebox[origin=c]{90}{\textbf{BSRNN Models}}} & full finetuning & 37.80 & 0.00 & 84.31 \\
+     & LoRA (rank 128) & 56.13 & 48.49 & 91.18 \\
+     & LoRA (rank 32) & 42.38 & 12.12 & 86.03 \\
+     & LoRA (rank 16) & 40.09 & 6.06 & 85.17 \\
+     & from scratch & 37.80 & 0.00 & 84.31 \\
+     & base & 37.80 & 0.00 & 84.31 \\
+    \bottomrule
+  \end{tabular}
+  }%
+\end{table}

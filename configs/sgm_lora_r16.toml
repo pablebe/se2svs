@@ -55,5 +55,3 @@ sigma_min = 0.1
 sigma_max = 1.0
 theta = 2.0
 
-# Checkpoint to load pretrained weights from
-ckpt = "./checkpoints/se2svs/sgm_lora_r16/epoch=533-sdr=7.63.ckpt"

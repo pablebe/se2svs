@@ -13,3 +13,4 @@ wandb/*
 .DS_Store
 __pycache__/
 trash/*
+migrate_checkpoint_module_paths.py

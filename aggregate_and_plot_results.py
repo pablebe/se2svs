@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Aggregate results from multiple CSV files and create violin plots.
+Aggregate results from multiple CSV files.
 
 This script:
 1. Recursively finds all result CSV files from multi-iteration model evaluations
 2. Aggregates results from all iterations for diffusion-based SGMSE models
-3. Creates violin plots showing performance variation across iterations for each dataset
+3. Exports comparison CSVs and LaTeX tables per model and dataset
 """
 
 import argparse
@@ -15,8 +15,9 @@ import sys
 import types
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-import seaborn as sns
 import torch
 from pathlib import Path
 from collections import defaultdict
@@ -35,7 +36,7 @@ def find_all_result_csvs(base_dir, csv_name='results.csv', msrbench_csv_name='re
             ...
         gensvs_eval_audio/
             ...
-        ears_wham_v2_test_5s/
+        ears_wham/
             ...
     
     Returns list of tuples: (dataset_name, model_name, iteration, csv_path)
@@ -100,7 +101,7 @@ MODEL_DISPLAY_NAMES = {
     'sgm_lora_r16_no_lora': 'LoRA-SGMSVS\n(no LoRA)',
     'sgm_lora_r16':         'LoRA-SGMSVS\n(rank 16)',
     'sgm_lora_r16_adaptive':'LoRA-SGMSVS\n(rank 16)',
-    'sgm_full':             'SGMSVS\n(full finetuning)',
+    'sgm_full':             'SGMSVS\n(full fine-tuning)',
     'sgm_base':             'SGMSE \n(base)',
 }
 
@@ -115,7 +116,7 @@ BSRNN_MODEL_DISPLAY_NAMES = {
     # virtual names for r32/r128 on EARS-WHAM (uses no_lora CSV, keeps rank label)
     'bsrnn_lora_r32_adaptive':   'LoRA-BSRNNSVS\n(rank 32)',
     'bsrnn_lora_r128_adaptive':  'LoRA-BSRNNSVS\n(rank 128)',
-    'bsrnn_full': 'BSRNNSVS\n(full finetuning)',
+    'bsrnn_full': 'BSRNNSVS\n(full fine-tuning)',
     'bsrnn_scratch': 'BSRNNSVS\n(from scratch)',
 }
 
@@ -161,21 +162,21 @@ METRIC_ORDER = ['sdr', 'si_sdr', 'multi_res_loss', 'mert_mse',
 
 # Dataset display names for column headers
 DATASET_LABELS = {
-    'MSRBench_Vocals':    'MSRBench',
-    'gensvs_eval_audio':  'GenSVS',
-    'ears_wham_v2_test_5s': 'EARS-WHAM',
+    'MSRBench_Vocals':      'MSRBench',
+    'gensvs_eval_audio':    'GenSVS',
+    'ears_wham':            'EARS-WHAM',
 }
 
 # Canonical model display order
 MODEL_ORDER = [
-    'SGMSVS\n(full finetuning)',
+    'SGMSVS\n(full fine-tuning)',
     'LoRA-SGMSVS\n(rank 16)',
     'SGMSVS\n(from scratch)',
     'SGMSE \n(base)',
 ]
 
 BSRNN_MODEL_ORDER = [
-    'BSRNNSVS\n(full finetuning)',
+    'BSRNNSVS\n(full fine-tuning)',
     'LoRA-BSRNNSVS\n(rank 128)',
     'LoRA-BSRNNSVS\n(rank 32)',
     'LoRA-BSRNNSVS\n(rank 16)',
@@ -238,11 +239,11 @@ PRECOMPUTED_PARAM_COUNTS = {
 }
 
 PRECOMPUTED_GMACS_PER_SECOND = {
-    'SGMSVS (full finetuning)': 399.64,
+    'SGMSVS (full fine-tuning)': 399.64,
     'LoRA-SGMSVS (rank 16)': 895.07,
     'SGMSVS (from scratch)': 399.64,
     'SGMSE (base)': 399.64,
-    'BSRNNSVS (full finetuning)': 84.31,
+    'BSRNNSVS (full fine-tuning)': 84.31,
     'LoRA-BSRNNSVS (rank 128)': 91.18,
     'LoRA-BSRNNSVS (rank 32)': 86.03,
     'LoRA-BSRNNSVS (rank 16)': 85.17,
@@ -374,7 +375,7 @@ def merge_lora_model_for_tables(dataset_name, model_name):
     no_lora variant is used for all LoRA ranks (rank 16, 32, and 128).
     """
     prefer_with_lora = dataset_name in {'gensvs_eval_audio', 'MSRBench_Vocals'}
-    prefer_no_lora = dataset_name == 'ears_wham_v2_test_5s'
+    prefer_no_lora = 'ears_wham' in dataset_name.lower()
 
     # SGM LoRA: w_lora → GenSVS/MSRBench only
     if model_name in SGM_LORA_W_MODELS:
@@ -410,6 +411,33 @@ def build_table_csv_list_with_merged_lora(csv_list):
         for merged_model in merge_lora_model_for_tables(dataset, model):
             merged.append((dataset, merged_model, iteration, csv_path))
     return merged
+
+
+def extract_seed_from_path(csv_path):
+    """Extract seed number from a CSV path segment like 'iter_000_seed42'."""
+    match = re.search(r'seed[_-]?(\d+)', str(csv_path), flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def filter_gensvs_sgm_seed_range(csv_list, min_seed=42, max_seed=51):
+    """Filter only GenSVS SGM entries to a specific seed range.
+
+    Non-GenSVS rows, non-SGM rows, and rows without an identifiable seed are
+    preserved unchanged.
+    """
+    filtered = []
+    for dataset, model, iteration, csv_path in csv_list:
+        if dataset != 'gensvs_eval_audio' or not is_diffusion_model(model):
+            filtered.append((dataset, model, iteration, csv_path))
+            continue
+
+        seed = extract_seed_from_path(csv_path)
+        if seed is None or (min_seed <= seed <= max_seed):
+            filtered.append((dataset, model, iteration, csv_path))
+
+    return filtered
 
 
 def load_and_aggregate_results(csv_list):
@@ -449,322 +477,6 @@ def load_and_aggregate_results(csv_list):
             all_data.append(row)
     
     return pd.DataFrame(all_data)
-
-
-def create_violin_plots(df, output_dir=None):
-    """
-    Create violin plots organized by dataset.
-    
-    Each plot contains subplots for all available metrics, showing variation across iterations
-    and models within a single dataset. Subplot layout adapts based on number of metrics.
-    Only metrics with actual data are displayed.
-    
-    Args:
-        df: Aggregated DataFrame from load_and_aggregate_results
-        output_dir: Directory to save plots (default: current directory)
-    """
-    if output_dir is None:
-        output_dir = '.'
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
-    # Filter to only diffusion-based models
-    df_diffusion = df[df['model'].apply(is_diffusion_model)].copy()
-    
-    if df_diffusion.empty:
-        print("Warning: No diffusion-based models found in results")
-        return
-    
-    # Filter to only multi-iteration models (iteration >= 0)
-    df_diffusion = df_diffusion[df_diffusion['iteration'] >= 0].copy()
-    
-    if df_diffusion.empty:
-        print("Warning: No multi-iteration diffusion models found in results")
-        return
-    
-    datasets = sorted(df_diffusion['dataset'].unique())
-    
-    # Create plots for each dataset
-    for dataset in datasets:
-        # Filter data for this dataset
-        data_for_dataset = df_diffusion[df_diffusion['dataset'] == dataset].copy()
-        
-        if data_for_dataset.empty:
-            print(f"Skipping {dataset}: no data")
-            continue
-        
-        # Apply display names
-        data_for_dataset['model'] = data_for_dataset['model'].map(get_display_name)
-        
-        # Identify available metrics with actual data for this dataset
-        all_metric_cols = [col.replace('_mean', '') for col in data_for_dataset.columns 
-                           if col.endswith('_mean')]
-        
-        # Filter to only metrics that have at least some data (not all NaN)
-        metric_cols = []
-        for metric in all_metric_cols:
-            metric_col = f'{metric}_mean'
-            if metric_col in data_for_dataset.columns:
-                if not data_for_dataset[metric_col].isna().all():
-                    metric_cols.append(metric)
-        
-        if not metric_cols:
-            print(f"Skipping {dataset}: no metrics with data")
-            continue
-        
-        # Determine subplot layout based on actual number of metrics
-        num_metrics = len(metric_cols)
-        if num_metrics == 1:
-            nrows, ncols = 1, 1
-        elif num_metrics == 2:
-            nrows, ncols = 1, 2
-        elif num_metrics <= 4:
-            nrows, ncols = 2, 2
-        elif num_metrics <= 6:
-            nrows, ncols = 2, 3
-        else:
-            nrows, ncols = 3, 3
-        
-        # Create subplots
-        fig, axes = plt.subplots(nrows, ncols, figsize=(5.5 * ncols, 4.5 * nrows))
-        if num_metrics == 1:
-            axes = [axes]
-        else:
-            axes = axes.flatten()
-        
-        for idx, metric in enumerate(metric_cols):
-            metric_col = f'{metric}_mean'
-            ax = axes[idx]
-            
-            # Remove NaN values for this metric
-            data_for_plot = data_for_dataset.dropna(subset=[metric_col]).copy()
-            
-            if data_for_plot.empty:
-                ax.text(0.5, 0.5, f'No data for {metric}', 
-                       ha='center', va='center', transform=ax.transAxes)
-                ax.set_title(metric)
-                continue
-            
-            # Create violin plot
-            sns.violinplot(data=data_for_plot, x='model', y=metric_col, ax=ax)
-            ax.set_title(f'{metric}')
-            ax.set_xlabel('')
-            ax.set_ylabel(metric)
-            ax.tick_params(axis='x', rotation=30)
-            plt.setp(ax.xaxis.get_majorticklabels(), rotation=30, ha='right')
-            ax.grid(True, axis='both')
-            ax.set_axisbelow(True)
-        
-        # Hide unused subplots only if we have extras
-        total_subplots = nrows * ncols
-        for idx in range(num_metrics, total_subplots):
-            axes[idx].axis('off')
-        
-        fig.suptitle(f'{dataset}', fontsize=16, fontweight='bold')
-        plt.tight_layout()
-        
-        # Save plot
-        # Sanitize dataset name for filename
-        safe_dataset_name = dataset.replace('/', '_').replace(' ', '_')
-        plot_path = os.path.join(output_dir, f'violin_plot_{safe_dataset_name}.png')
-        plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-        print(f"Saved plot: {plot_path}")
-        plt.close()
-
-
-def _create_column_delta_metric_plot(df, output_dir, metric, filename_stub, datasets_to_plot):
-    """Create a 2-row conference-column delta-metric violin figure."""
-    if output_dir is None:
-        output_dir = '.'
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Keep only multi-iteration diffusion models
-    df_diffusion = df[df['model'].apply(is_diffusion_model) & (df['iteration'] >= 0)].copy()
-    if df_diffusion.empty:
-        print(f"Warning: No multi-iteration diffusion models found for delta-{metric} violin plots")
-        return
-
-    # Use display names and fixed display order used throughout this script
-    df_diffusion['model'] = df_diffusion['model'].map(get_display_name)
-    metric_col = f'{metric}_mean'
-
-    # Single-column conference figure size (approx. 3.5in width)
-    nrows = len(datasets_to_plot)
-    fig, axes = plt.subplots(nrows, 1, figsize=(3.5, 1.95 * nrows), sharex=True)
-    if nrows == 1:
-        axes = [axes]
-
-    plotted_any = False
-    for idx, dataset in enumerate(datasets_to_plot):
-        ax = axes[idx]
-        dataset_data = df_diffusion[df_diffusion['dataset'] == dataset].copy()
-        if dataset_data.empty:
-            ax.axis('off')
-            continue
-        if metric_col not in dataset_data.columns or dataset_data[metric_col].isna().all():
-            ax.axis('off')
-            continue
-
-        plot_data = dataset_data.dropna(subset=[metric_col]).copy()
-        if plot_data.empty:
-            ax.axis('off')
-            continue
-
-        centered_col = f'{metric_col}_centered'
-        medians = plot_data.groupby('model')[metric_col].transform('median')
-        plot_data[centered_col] = plot_data[metric_col] - medians
-
-        present_models = list(plot_data['model'].unique())
-        model_order = [m for m in MODEL_ORDER if m in present_models]
-        model_order += sorted(set(present_models) - set(model_order))
-
-        sns.violinplot(
-            data=plot_data,
-            x='model',
-            y=centered_col,
-            order=model_order,
-            inner='box',
-            cut=0,
-            linewidth=0.9,
-            ax=ax,
-        )
-
-        dataset_label = DATASET_LABELS.get(dataset, dataset)
-        metric_label = METRIC_LABELS.get(metric, metric)
-        ax.set_title(f'{dataset_label}', fontsize=9, pad=4)
-        ax.set_xlabel('')
-        ax.set_ylabel(f'Δ {metric_label}', fontsize=8)
-        ax.axhline(0.0, color='black', linewidth=0.8, alpha=0.7)
-        ax.tick_params(axis='y', labelsize=7)
-        if idx < nrows - 1:
-            ax.tick_params(axis='x', labelbottom=False)
-        else:
-            ax.tick_params(axis='x', labelsize=7, rotation=28)
-            plt.setp(ax.xaxis.get_majorticklabels(), ha='right')
-        ax.grid(True, axis='y', alpha=0.3)
-        ax.set_axisbelow(True)
-        plotted_any = True
-
-    if not plotted_any:
-        plt.close(fig)
-        print(f"Warning: Could not create delta-{metric} violin plot (no valid data)")
-        return
-
-    fig.tight_layout(h_pad=0.35)
-
-    png_path = os.path.join(output_dir, f'{filename_stub}.png')
-    pdf_path = os.path.join(output_dir, f'{filename_stub}.pdf')
-    plt.savefig(png_path, dpi=400, bbox_inches='tight')
-    plt.savefig(pdf_path, bbox_inches='tight')
-    print(f"Saved delta-{metric} violin plot: {png_path}")
-    print(f"Saved delta-{metric} violin plot: {pdf_path}")
-    plt.close()
-
-
-def create_column_stacked_violin_plot(df, output_dir=None):
-    """
-    Create a conference-column figure for GenSVS and MSRBench.
-
-    The figure visualizes iteration variance as delta SDR (median-centered per
-    model) using a violin plot with an inner box representation.
-    """
-    _create_column_delta_metric_plot(
-        df,
-        output_dir,
-        metric='sdr',
-        filename_stub='violin_plot_iteration_variance_column',
-        datasets_to_plot=['gensvs_eval_audio', 'MSRBench_Vocals'],
-    )
-
-
-def create_column_stacked_violin_plot_sisdr(df, output_dir=None):
-    """Create the same conference-column figure style for delta SI-SDR."""
-    _create_column_delta_metric_plot(
-        df,
-        output_dir,
-        metric='si_sdr',
-        filename_stub='violin_plot_iteration_variance_column_sisdr',
-        datasets_to_plot=['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s'],
-    )
-
-
-def create_combined_delta_sisdr_violin_plot(df, output_dir=None):
-    """Create a single-axes delta SI-SDR violin plot with dataset color coding."""
-    if output_dir is None:
-        output_dir = '.'
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # Keep only multi-iteration diffusion models
-    df_diffusion = df[df['model'].apply(is_diffusion_model) & (df['iteration'] >= 0)].copy()
-    if df_diffusion.empty:
-        print("Warning: No multi-iteration diffusion models found for combined delta SI-SDR plot")
-        return
-
-    dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s']
-    metric_col = 'si_sdr_mean'
-
-    # Build long-form data for selected datasets
-    data = df_diffusion[df_diffusion['dataset'].isin(dataset_order)].copy()
-    if data.empty or metric_col not in data.columns:
-        print("Warning: No SI-SDR data found for combined delta SI-SDR plot")
-        return
-
-    data = data.dropna(subset=[metric_col]).copy()
-    if data.empty:
-        print("Warning: SI-SDR has no valid values for combined delta SI-SDR plot")
-        return
-
-    data['model'] = data['model'].map(get_display_name)
-    data['dataset_label'] = data['dataset'].map(lambda d: DATASET_LABELS.get(d, d))
-
-    # Center each distribution around zero per (dataset, model)
-    grouped_median = data.groupby(['dataset', 'model'])[metric_col].transform('median')
-    data['delta_si_sdr'] = data[metric_col] - grouped_median
-
-    # Keep deterministic display order
-    present_models = list(data['model'].unique())
-    model_order = [m for m in MODEL_ORDER if m in present_models]
-    model_order += sorted(set(present_models) - set(model_order))
-    hue_order = [DATASET_LABELS.get(d, d) for d in dataset_order if d in set(data['dataset'])]
-
-    # Compact single-column figure
-    fig, ax = plt.subplots(1, 1, figsize=(3.5, 2.8))
-    sns.violinplot(
-        data=data,
-        x='model',
-        y='delta_si_sdr',
-        hue='dataset_label',
-        order=model_order,
-        hue_order=hue_order,
-        inner='box',
-        cut=0,
-        linewidth=0.9,
-        dodge=True,
-        ax=ax,
-    )
-
-    ax.set_title('All Datasets', fontsize=9, pad=4)
-    ax.set_xlabel('')
-    ax.set_ylabel('Δ SI-SDR', fontsize=8)
-    ax.axhline(0.0, color='black', linewidth=0.8, alpha=0.7)
-    ax.tick_params(axis='y', labelsize=7)
-    ax.tick_params(axis='x', labelsize=7, rotation=28)
-    plt.setp(ax.xaxis.get_majorticklabels(), ha='right')
-    ax.grid(True, axis='y', alpha=0.3)
-    ax.set_axisbelow(True)
-    ax.legend(title='', fontsize=7, loc='upper right', frameon=True)
-
-    fig.tight_layout(pad=0.4)
-
-    png_path = os.path.join(output_dir, 'violin_plot_iteration_variance_combined_sisdr.png')
-    pdf_path = os.path.join(output_dir, 'violin_plot_iteration_variance_combined_sisdr.pdf')
-    plt.savefig(png_path, dpi=400, bbox_inches='tight')
-    plt.savefig(pdf_path, bbox_inches='tight')
-    print(f"Saved combined delta SI-SDR violin plot: {png_path}")
-    print(f"Saved combined delta SI-SDR violin plot: {pdf_path}")
-    plt.close()
 
 
 def create_comparison_table(df, output_dir=None):
@@ -845,13 +557,13 @@ def export_gensvs_to_msrbench_delta_table(df, output_dir=None):
 
     model_specs = [
         ('Generative (SGM)', 'from scratch',    ['sgm_scratch']),
-        ('Generative (SGM)', 'full finetuning', ['sgm_full']),
+        ('Generative (SGM)', 'full fine-tuning', ['sgm_full']),
         ('Generative (SGM)', 'LoRA 16', [
             'sgm_lora_r16_adaptive',
             'sgm_lora_r16',
         ]),
         ('Discriminative (BSRNN)', 'from scratch',    ['bsrnn_scratch']),
-        ('Discriminative (BSRNN)', 'full finetuning', ['bsrnn_full']),
+        ('Discriminative (BSRNN)', 'full fine-tuning', ['bsrnn_full']),
         ('Discriminative (BSRNN)', 'LoRA 16', [
             'bsrnn_lora_r16_adaptive',
             'bsrnn_lora_r16',
@@ -903,17 +615,33 @@ def export_gensvs_to_msrbench_delta_table(df, output_dir=None):
         })
 
     out_df = pd.DataFrame(rows)
+
+    output_path = os.path.join(output_dir, 'summary_gensvs_to_msrbench_delta.csv')
+    out_df.to_csv(output_path, index=False)
+    print(f'Saved GenSVS->MSRBench delta table: {output_path}')
+
     return out_df
 
 
 def _delta_variant_to_compact_model_label(variant):
     """Map delta-table variant names to combined-table model labels."""
     mapping = {
-        'full finetuning': 'full finetuning',
+        'full finetuning': 'full fine-tuning',
+        'full fine-tuning': 'full fine-tuning',
         'LoRA 16': 'LoRA (rank 16)',
         'from scratch': 'from scratch',
     }
     return mapping.get(variant, variant)
+
+
+def _normalize_delta_variant_key(variant):
+    """Normalize delta-variant tokens so naming differences map to one key."""
+    if variant is None:
+        return ''
+    key = str(variant).strip().lower()
+    key = key.replace('-', ' ')
+    key = ' '.join(key.split())
+    return key
 
 
 def create_latex_table_gensvs_to_msrbench_delta(
@@ -932,10 +660,10 @@ def create_latex_table_gensvs_to_msrbench_delta(
         return
 
     family_sections = [
-        ('SG Models', 'Generative (SGM)'),
-        ('BSRNN Models', 'Discriminative (BSRNN)'),
+        ('SGM', 'Generative (SGM)'),
+        ('BSRNN', 'Discriminative (BSRNN)'),
     ]
-    variant_order = ['full finetuning', 'LoRA 16', 'from scratch']
+    variant_order = ['full fine-tuning', 'LoRA 16', 'from scratch']
     metric_columns = [
         ('sdr_delta_msrbench_minus_gensvs', 'sdr', 'Delta SDR', 'max'),
         ('mert_mse_delta_msrbench_minus_gensvs', 'mert_mse', 'Delta MSE', 'min'),
@@ -962,21 +690,22 @@ def create_latex_table_gensvs_to_msrbench_delta(
     for _, family_name in family_sections:
         fam_df = delta_df[delta_df['family'] == family_name]
         for _, row in fam_df.iterrows():
-            variant = row['variant']
+            variant = _normalize_delta_variant_key(row['variant'])
             for metric_col, _, _, _ in metric_columns:
                 value_lookup[(family_name, variant, metric_col)] = row.get(metric_col, np.nan)
 
     for variant in variant_order:
         model_label = _delta_variant_to_compact_model_label(variant)
         cells = [f'    {model_label}']
+        variant_key = _normalize_delta_variant_key(variant)
 
         sg_cells = []
         bsrnn_cells = []
         for metric_col, metric_name, _, better_rule in metric_columns:
             sg_family = 'Generative (SGM)'
             bsrnn_family = 'Discriminative (BSRNN)'
-            sg_val = value_lookup.get((sg_family, variant, metric_col), np.nan)
-            bsrnn_val = value_lookup.get((bsrnn_family, variant, metric_col), np.nan)
+            sg_val = value_lookup.get((sg_family, variant_key, metric_col), np.nan)
+            bsrnn_val = value_lookup.get((bsrnn_family, variant_key, metric_col), np.nan)
 
             sg_fmt = '--'
             bsrnn_fmt = '--'
@@ -1044,8 +773,8 @@ def compact_combined_model_label(display_model, family):
         if rank_match:
             return f'LoRA (rank {rank_match.group(1)})'
         return 'LoRA'
-    if 'full finetuning' in lowered:
-        return 'full finetuning'
+    if 'full fine tuning' in lowered or 'full finetuning' in lowered:
+        return 'full fine-tuning'
     if 'from scratch' in lowered:
         return 'from scratch'
     if 'no finetuning' in lowered or lowered == 'base' or '(base)' in lowered:
@@ -1061,15 +790,16 @@ def compact_combined_model_label(display_model, family):
 def _normalize_model_name_for_complexity_lookup(name):
     """Normalize display names to match ptflops complexity summary entries."""
     normalized = re.sub(r'\s+', ' ', name.replace('\n', ' ')).strip()
-    return normalized.replace('(no finetuning)', '(base)')
+    normalized = normalized.replace('(no finetuning)', '(base)')
+    return normalized.replace('full finetuning', 'full fine-tuning')
 
 
 def _canonical_model_name_from_compact_label(model_label, family_key):
     """Map compact combined-table labels to canonical names used in complexity tables."""
     lowered = model_label.lower().strip()
 
-    if lowered == 'full finetuning':
-        return 'SGMSVS (full finetuning)' if family_key == 'SGM' else 'BSRNNSVS (full finetuning)'
+    if lowered in {'full finetuning', 'full fine-tuning', 'full fine tuning'}:
+        return 'SGMSVS (full fine-tuning)' if family_key == 'SGM' else 'BSRNNSVS (full fine-tuning)'
     if lowered == 'from scratch':
         return 'SGMSVS (from scratch)' if family_key == 'SGM' else 'BSRNNSVS (from scratch)'
     if lowered in {'no finetuning', 'base'}:
@@ -1115,170 +845,6 @@ def load_model_complexity_summary(output_dir=None):
     return dict(PRECOMPUTED_GMACS_PER_SECOND)
 
 
-def create_latex_table(
-    df,
-    output_dir=None,
-    model_filter_fn=is_diffusion_model,
-    display_name_fn=get_display_name,
-    model_order=MODEL_ORDER,
-    output_filename='results_table.tex',
-    require_multi_iteration=True,
-    dataset_order=None,
-    include_all_datasets=False,
-):
-    """
-    Export a single LaTeX table with sub-multicolumns for each dataset.
-    Best value per metric/dataset is bolded. Wrapped in resizebox.
-    """
-    if output_dir is None:
-        output_dir = '.'
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    model_mask = df['model'].apply(model_filter_fn)
-    if require_multi_iteration:
-        model_mask = model_mask & (df['iteration'] >= 0)
-    df_diff = df[model_mask].copy()
-    if df_diff.empty:
-        print('Warning: No matching models for LaTeX table')
-        return
-
-    # Apply display names
-    df_diff['model'] = df_diff['model'].map(display_name_fn)
-
-    # Build per-dataset aggregated stats: mean of per-iteration means
-    # Default display order: GenSVS, MSRBench, EARS-WHAM
-    if dataset_order is None:
-        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s']
-    available = set(df_diff['dataset'].unique())
-    if include_all_datasets:
-        datasets = list(dataset_order)
-        datasets += sorted(available - set(datasets))
-    else:
-        datasets = [d for d in dataset_order if d in available] + \
-                   sorted(available - set(dataset_order))
-
-    # Collect which metrics exist per dataset (respecting preferred order)
-    dataset_metrics = {}
-    for dataset in datasets:
-        sub = df_diff[df_diff['dataset'] == dataset]
-        if sub.empty and include_all_datasets:
-            dataset_metrics[dataset] = [m for m in METRIC_ORDER if m in metrics_for_dataset(dataset)]
-        else:
-            available = [m for m in METRIC_ORDER
-                         if f'{m}_mean' in sub.columns and not sub[f'{m}_mean'].isna().all()]
-            dataset_metrics[dataset] = available
-
-    # Aggregate: for each (dataset, display_model) compute mean across iterations
-    agg = {}
-    for dataset in datasets:
-        sub = df_diff[df_diff['dataset'] == dataset]
-        agg[dataset] = {}
-        for model in sub['model'].unique():
-            msub = sub[sub['model'] == model]
-            agg[dataset][model] = {}
-            for metric in dataset_metrics[dataset]:
-                vals = msub[f'{metric}_mean'].dropna()
-                if len(vals):
-                    std_ddof = 1 if require_multi_iteration else 0
-                    agg[dataset][model][metric] = {
-                        'mean': vals.mean(),
-                        'std': vals.std(ddof=std_ddof),
-                    }
-
-    # Determine canonical model list (intersection of all datasets, ordered)
-    all_models = set()
-    for dataset in datasets:
-        all_models |= set(agg[dataset].keys())
-    # Sort by configured model order, then any remaining alphabetically
-    ordered_models = [m for m in model_order if m in all_models]
-    ordered_models += sorted(all_models - set(ordered_models))
-
-    # ----- build LaTeX -----
-    # Count total metric columns
-    col_counts = [len(dataset_metrics[d]) for d in datasets]
-    total_metric_cols = sum(col_counts)
-
-    lines = []
-    lines.append(r'\begin{table*}[ht]')
-    lines.append(r'  \centering')
-    lines.append(r'  \resizebox{\textwidth}{!}{%')
-    lines.append(r'  \setlength{\tabcolsep}{3pt}%')
-    lines.append(r'  \begin{tabular}{l' + 'r' * total_metric_cols + '}')
-
-    # Row 1: dataset multicolumn headers
-    header1 = ['  Model']
-    for dataset, ncols in zip(datasets, col_counts):
-        label = DATASET_LABELS.get(dataset, dataset)
-        header1.append(f'\\multicolumn{{{ncols}}}{{c}}{{{label}}}')
-    lines.append('    ' + ' & '.join(header1) + ' \\\\')
-
-    # Cmidrule separators under each dataset block
-    col_cursor = 2  # model col is 1
-    cmidrules = []
-    for ncols in col_counts:
-        cmidrules.append(f'\\cmidrule(lr){{{col_cursor}-{col_cursor + ncols - 1}}}')
-        col_cursor += ncols
-    lines.append('    ' + ' '.join(cmidrules))
-
-    # Row 2: metric sub-headers
-    header2 = ['  ']
-    for dataset in datasets:
-        for metric in dataset_metrics[dataset]:
-            header2.append(get_metric_label(metric))
-    lines.append('    ' + ' & '.join(header2) + ' \\\\')
-    lines.append(r'    \midrule')
-
-    # Find best rounded value per (dataset, metric) for bolding ties after rounding
-    best = {}
-    for dataset in datasets:
-        best[dataset] = {}
-        for metric in dataset_metrics[dataset]:
-            vals = {m: _rounded(agg[dataset][m][metric]['mean'], metric)
-                    for m in ordered_models
-                    if m in agg[dataset] and metric in agg[dataset][m]}
-            if not vals:
-                continue
-            if metric in LOWER_IS_BETTER:
-                best[dataset][metric] = min(vals.values())
-            else:
-                best[dataset][metric] = max(vals.values())
-
-    # Data rows
-    for model in ordered_models:
-        # Single-line model name for LaTeX (replace \n with space)
-        model_tex = model.replace('\n', ' ')
-        cells = [f'  {model_tex}']
-        for dataset in datasets:
-            for metric in dataset_metrics[dataset]:
-                if model in agg[dataset] and metric in agg[dataset][model]:
-                    stats = agg[dataset][model][metric]
-                    mean_val = stats['mean']
-                    std_val = stats['std']
-                    formatted = (
-                        f"{_fmt(mean_val, metric)}"
-                        f"{{\\scriptsize $\\pm$ {_fmt(std_val, metric)}}}"
-                    )
-                    if _rounded(mean_val, metric) == best[dataset].get(metric):
-                        formatted = f'{{\\boldmath {formatted}}}'
-                    cells.append(formatted)
-                else:
-                    cells.append('--')
-        lines.append('    ' + ' & '.join(cells) + ' \\\\[5pt]')
-
-    lines.append(r'    \bottomrule')
-    lines.append(r'  \end{tabular}')
-    lines.append(r'  }%')
-    lines.append(r'\end{table*}')
-
-    tex = '\n'.join(lines) + '\n'
-
-    tex_path = os.path.join(output_dir, output_filename)
-    with open(tex_path, 'w') as f:
-        f.write(tex)
-    print(f'Saved LaTeX table: {tex_path}')
-
-
 def create_latex_table_combined_families(
     csv_list,
     output_dir=None,
@@ -1315,7 +881,7 @@ def create_latex_table_combined_families(
         return
 
     if dataset_order is None:
-        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s']
+        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham']
     available = set(dataset for dataset, _, _, _ in filtered)
     if include_all_datasets:
         datasets = list(dataset_order)
@@ -1380,8 +946,8 @@ def create_latex_table_combined_families(
                 }
 
     family_sections = [
-        ('SG Models', MODEL_ORDER, 'SGM'),
-        ('BSRNN Models', BSRNN_MODEL_ORDER, 'BSRNN'),
+        ('SGM', MODEL_ORDER, 'SGM'),
+        ('BSRNN', BSRNN_MODEL_ORDER, 'BSRNN'),
     ]
     noisy_model_name = 'Noisy'
 
@@ -1655,406 +1221,272 @@ def create_parameter_table(
     print(f'Saved LaTeX parameter table: {tex_path}')
 
 
-def create_latex_table_dataset_std(
-    csv_list,
-    output_dir=None,
-    model_filter_fn=is_diffusion_model,
-    display_name_fn=get_display_name,
-    model_order=MODEL_ORDER,
-    output_filename='results_table_dataset_std.tex',
-    require_multi_iteration=True,
-    dataset_order=None,
-    include_all_datasets=False,
-):
+# ---------------------------------------------------------------------------
+# PESQ vs MERT-MSE tradeoff plot — label placement
+# Each entry maps (family, abbreviated_label) -> (dx_pts, dy_pts, ha, va).
+# ---------------------------------------------------------------------------
+_PESQ_MERT_LABEL_OFFSET_DEFAULT = (0, 6, 'center', 'bottom')
+
+_PESQ_MERT_LABEL_OFFSETS_GENSVS = {
+    ('SGM',   'base'):         ( 0, -6, 'center', 'top'    ),
+    ('BSRNN', 'base'):         ( 0, -8, 'right',  'top'    ),
+    ('SGM',   'full'):         ( 0, -6, 'center', 'top'    ),
+    ('BSRNN', 'full'):         ( 0,  4, 'center', 'bottom' ),
+    ('SGM',   'scratch'):      (15,  6, 'center', 'bottom' ),
+    ('BSRNN', 'scratch'):      (15,  6, 'center', 'bottom' ),
+    ('SGM',   'LoRA\n16'):     ( 9,  4, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n16'):     ( 5,  4, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n32/128'):( 6, -6, 'right',  'top'    ),
+    ('BSRNN', 'LoRA\n128'):   (-3,  1, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n32'):    ( 6, -4, 'right',  'top'    ),
+}
+
+_PESQ_MERT_LABEL_OFFSETS_MSRBENCH = {
+    ('SGM',   'base'):         ( 0, -6, 'center', 'top'    ),
+    ('BSRNN', 'base'):         ( 0, -8, 'right',  'top'    ),
+    ('SGM',   'full'):         ( 0, -6, 'center', 'top'    ),
+    ('BSRNN', 'full'):         ( 0,  4, 'center', 'bottom' ),
+    ('SGM',   'scratch'):      (15,  6, 'center', 'bottom' ),
+    ('BSRNN', 'scratch'):      (15,  6, 'center', 'bottom' ),
+    ('SGM',   'LoRA\n16'):     ( 9,  4, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n16'):     ( 5,  4, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n32/128'):( 6, -6, 'right',  'top'    ),
+    ('BSRNN', 'LoRA\n128'):   (-3,  1, 'right',  'bottom' ),
+    ('BSRNN', 'LoRA\n32'):    ( 6, -4, 'right',  'top'    ),
+}
+
+
+def _get_family_from_display(display_name):
+    """Return 'SGM' or 'BSRNN' based on display name, or None if unrecognised."""
+    name = display_name.replace('\n', ' ').lower()
+    if 'bsrnn' in name:
+        return 'BSRNN'
+    if 'sgm' in name:
+        return 'SGM'
+    return None
+
+
+def _get_abbreviated_label(display_name):
+    """Return a short scatter-plot annotation label from a display name."""
+    name = display_name.replace('\n', ' ').lower()
+    if 'full fine-tuning' in name or 'full finetuning' in name or 'full fine tuning' in name:
+        return 'full'
+    if 'from scratch' in name:
+        return 'scratch'
+    if 'base' in name:
+        return 'base'
+    rank_match = re.search(r'rank\s*(\d+)', name)
+    if rank_match:
+        return f'LoRA\n{rank_match.group(1)}'
+    return display_name.replace('\n', ' ')
+
+
+def create_pesq_vs_mert_tradeoff_plot(df, output_dir=None):
+    """Create a stacked 2-row PESQ (EARS-WHAM) vs MERT-MSE tradeoff plot.
+
+    Top panel: GenSVS MERT-MSE vs EARS-WHAM PESQ.
+    Bottom panel: MSRBench MERT-MSE vs EARS-WHAM PESQ.
+    Includes both SGM and BSRNN model families.
+    Models are matched by display name so that the dataset-aware LoRA adaptive
+    variant (e.g. with-LoRA on MSS, no-LoRA on EARS-WHAM) is handled correctly.
     """
-    Export a second LaTeX table with the same layout, but with:
-    - mean: average over iterations first (per file), then over dataset files
-    - std:  standard deviation over dataset files (after per-file iteration averaging)
-    """
+    from matplotlib.ticker import FormatStrFormatter, MultipleLocator
+    import matplotlib as mpl
+    prev_font_family = mpl.rcParams.get('font.family', 'sans-serif')
+    prev_font_serif  = list(mpl.rcParams.get('font.serif', []))
+    prev_mathtext    = mpl.rcParams.get('mathtext.fontset', 'dejavusans')
+    mpl.rcParams['font.family']      = 'serif'
+    mpl.rcParams['font.serif']       = ['Times New Roman', 'Times', 'DejaVu Serif']
+    mpl.rcParams['mathtext.fontset'] = 'stix'
+
     if output_dir is None:
         output_dir = '.'
     else:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    # Keep only matching models (optionally requiring multi-iteration runs)
-    filtered = [
-        (dataset, model, iteration, csv_path)
-        for dataset, model, iteration, csv_path in csv_list
-        if model_filter_fn(model) and (iteration >= 0 if require_multi_iteration else True)
-    ]
-    if not filtered:
-        print('Warning: No matching models for dataset-std LaTeX table')
+    # Classify each row: SGM uses multi-iteration, BSRNN uses single-run
+    def _classify(row):
+        m = row['model']
+        if is_bsrnn_model(m):
+            return 'BSRNN'
+        if is_diffusion_model(m) and row['iteration'] >= 0:
+            return 'SGM'
+        return None
+
+    df_work = df.copy()
+    df_work['family'] = df_work.apply(_classify, axis=1)
+    df_work = df_work[df_work['family'].notna()].copy()
+
+    if df_work.empty:
+        print('Warning: No data for PESQ vs MERT-MSE tradeoff plot')
+        mpl.rcParams['font.family']      = prev_font_family
+        mpl.rcParams['font.serif']       = prev_font_serif
+        mpl.rcParams['mathtext.fontset'] = prev_mathtext
         return
 
-    # Dataset order
-    if dataset_order is None:
-        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s']
-    available_datasets = sorted(set(d for d, _, _, _ in filtered))
-    if include_all_datasets:
-        datasets = list(dataset_order)
-        datasets += sorted(set(available_datasets) - set(datasets))
-    else:
-        datasets = [d for d in dataset_order if d in available_datasets] + \
-                   sorted(set(available_datasets) - set(dataset_order))
+    # Apply display names (BSRNN uses its own mapping)
+    df_work['display_name'] = df_work.apply(
+        lambda r: get_bsrnn_display_name(r['model']) if r['family'] == 'BSRNN'
+                  else get_display_name(r['model']),
+        axis=1,
+    )
 
-    # Group CSVs by dataset+model
-    grouped = defaultdict(list)
-    for dataset, model, iteration, csv_path in filtered:
-        grouped[(dataset, model)].append((iteration, csv_path))
+    all_datasets = df_work['dataset'].unique()
+    gensvs_ds   = next((d for d in all_datasets if 'gensvs'    in d.lower()), None)
+    msrbench_ds = next((d for d in all_datasets if 'msrbench'  in d.lower()), None)
+    earswham_ds = next((d for d in all_datasets if 'ears_wham' in d.lower()), None)
 
-    # Build stats dict: agg[dataset][display_model][metric] = {'mean': x, 'std': y}
-    agg = {}
-    dataset_metrics = {}
-    for dataset in datasets:
-        dataset_metrics[dataset] = [m for m in METRIC_ORDER if m in metrics_for_dataset(dataset)]
-        agg[dataset] = {}
-
-        models_in_dataset = sorted({m for (d, m) in grouped.keys() if d == dataset})
-        for model in models_in_dataset:
-            display_model = display_name_fn(model)
-
-            iter_entries = sorted(grouped[(dataset, model)], key=lambda x: x[0])
-            metric_stats = {}
-
-            for metric in dataset_metrics[dataset]:
-                per_iter_series = []
-
-                for _, csv_path in iter_entries:
-                    df_iter = pd.read_csv(csv_path)
-
-                    if metric not in df_iter.columns:
-                        continue
-
-                    # Use file_id when available; otherwise fallback to row index.
-                    if 'file_id' in df_iter.columns:
-                        s = pd.to_numeric(df_iter[metric], errors='coerce')
-                        s.index = df_iter['file_id']
-                    else:
-                        s = pd.to_numeric(df_iter[metric], errors='coerce')
-
-                    s = s.dropna()
-                    if len(s) > 0:
-                        per_iter_series.append(s)
-
-                if not per_iter_series:
-                    continue
-
-                # Average over iterations per file, then compute dataset mean/std across files.
-                stacked = pd.concat(per_iter_series, axis=1)
-                per_file_mean_over_iters = stacked.mean(axis=1, skipna=True)
-                if len(per_file_mean_over_iters) == 0:
-                    continue
-
-                metric_stats[metric] = {
-                    'mean': per_file_mean_over_iters.mean(),
-                    'std': per_file_mean_over_iters.std(),
-                }
-
-            if metric_stats:
-                agg[dataset][display_model] = metric_stats
-
-    # Restrict metrics to those that actually exist in aggregated results
-    # unless a fixed dataset layout is requested.
-    if not include_all_datasets:
-        for dataset in datasets:
-            dataset_metrics[dataset] = [
-                m for m in METRIC_ORDER
-                if m in dataset_metrics[dataset] and any(
-                    (m in agg[dataset].get(model, {})) for model in agg[dataset]
-                )
-            ]
-
-    # Model order
-    all_models = set()
-    for dataset in datasets:
-        all_models |= set(agg[dataset].keys())
-    ordered_models = [m for m in model_order if m in all_models]
-    ordered_models += sorted(all_models - set(ordered_models))
-
-    # Build LaTeX table
-    col_counts = [len(dataset_metrics[d]) for d in datasets]
-    total_metric_cols = sum(col_counts)
-
-    lines = []
-    lines.append(r'\begin{table*}[ht]')
-    lines.append(r'  \centering')
-    lines.append(r'  \resizebox{\textwidth}{!}{%')
-    lines.append(r'  \setlength{\tabcolsep}{3pt}%')
-    lines.append(r'  \begin{tabular}{l' + 'r' * total_metric_cols + '}')
-
-
-    header1 = ['  Model']
-    for dataset, ncols in zip(datasets, col_counts):
-        label = DATASET_LABELS.get(dataset, dataset)
-        header1.append(f'\\multicolumn{{{ncols}}}{{c}}{{{label}}}')
-    lines.append('    ' + ' & '.join(header1) + ' \\\\')
-
-    col_cursor = 2
-    cmidrules = []
-    for ncols in col_counts:
-        cmidrules.append(f'\\cmidrule(lr){{{col_cursor}-{col_cursor + ncols - 1}}}')
-        col_cursor += ncols
-    lines.append('    ' + ' '.join(cmidrules))
-
-    header2 = ['  ']
-    for dataset in datasets:
-        for metric in dataset_metrics[dataset]:
-            header2.append(get_metric_label(metric))
-    lines.append('    ' + ' & '.join(header2) + ' \\\\')
-    lines.append(r'    \midrule')
-
-    # Best rounded value per dataset/metric; bold all ties after rounding
-    best = {}
-    for dataset in datasets:
-        best[dataset] = {}
-        for metric in dataset_metrics[dataset]:
-            vals = {
-                m: _rounded(agg[dataset][m][metric]['mean'], metric)
-                for m in ordered_models
-                if m in agg[dataset] and metric in agg[dataset][m]
-            }
-            if not vals:
-                continue
-            if metric in LOWER_IS_BETTER:
-                best[dataset][metric] = min(vals.values())
-            else:
-                best[dataset][metric] = max(vals.values())
-
-    for model in ordered_models:
-        model_tex = model.replace('\n', ' ')
-        cells = [f'  {model_tex}']
-        for dataset in datasets:
-            for metric in dataset_metrics[dataset]:
-                if model in agg[dataset] and metric in agg[dataset][model]:
-                    stats = agg[dataset][model][metric]
-                    mean_val = stats['mean']
-                    std_val = stats['std']
-                    formatted = (
-                        f"$\\, {_fmt(mean_val, metric)}"
-                        f"{{\\scriptsize \\pm {_fmt(std_val, metric)}}}$"
-                    )
-                    if _rounded(mean_val, metric) == best[dataset].get(metric):
-                        formatted = f'{{\\boldmath {formatted}}}'
-                    cells.append(formatted)
-                else:
-                    cells.append('--')
-        lines.append('    ' + ' & '.join(cells) + ' \\\\[5pt]')
-
-    lines.append(r'    \bottomrule')
-    lines.append(r'  \end{tabular}')
-    lines.append(r'  }%')
-    lines.append(r'\end{table*}')
-
-    tex = '\n'.join(lines) + '\n'
-    tex_path = os.path.join(output_dir, output_filename)
-    with open(tex_path, 'w') as f:
-        f.write(tex)
-    print(f'Saved LaTeX table (dataset std): {tex_path}')
-
-
-def create_latex_table_combined_std(
-    df,
-    csv_list,
-    output_dir=None,
-    model_filter_fn=is_diffusion_model,
-    display_name_fn=get_display_name,
-    model_order=MODEL_ORDER,
-    output_filename='results_table_combined_std.tex',
-    require_multi_iteration=True,
-    dataset_order=None,
-    include_all_datasets=False,
-):
-    """
-    Export LaTeX table with combined uncertainty in each cell:
-      mean^{+std_iter}_{-std_dataset}
-    where:
-      - std_iter: std across iterations of dataset-level means
-      - std_dataset: std across dataset files after averaging each file over iterations
-    """
-    if output_dir is None:
-        output_dir = '.'
-    else:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # ---- Build iteration-level stats from aggregated df ----
-    model_mask = df['model'].apply(model_filter_fn)
-    if require_multi_iteration:
-        model_mask = model_mask & (df['iteration'] >= 0)
-    df_diff = df[model_mask].copy()
-    if df_diff.empty:
-        print('Warning: No matching models for combined-std LaTeX table')
+    if not (gensvs_ds and msrbench_ds and earswham_ds):
+        missing = [n for n, v in [('GenSVS', gensvs_ds), ('MSRBench', msrbench_ds), ('EARS-WHAM', earswham_ds)] if not v]
+        print(f'Warning: Missing datasets for PESQ vs MERT-MSE tradeoff plot: {", ".join(missing)}')
+        mpl.rcParams['font.family']      = prev_font_family
+        mpl.rcParams['font.serif']       = prev_font_serif
+        mpl.rcParams['mathtext.fontset'] = prev_mathtext
         return
 
-    df_diff['model'] = df_diff['model'].map(display_name_fn)
-    std_ddof = 1 if require_multi_iteration else 0
+    def _mean_by_display(ds_name, metric):
+        col = f'{metric}_mean'
+        sub = df_work[df_work['dataset'] == ds_name]
+        if col not in sub.columns:
+            return {}
+        return sub.groupby('display_name')[col].mean().to_dict()
 
-    if dataset_order is None:
-        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham_v2_test_5s']
-    available = set(df_diff['dataset'].unique())
-    if include_all_datasets:
-        datasets = list(dataset_order)
-        datasets += sorted(available - set(datasets))
-    else:
-        datasets = [d for d in dataset_order if d in available] + sorted(available - set(dataset_order))
+    pesq          = _mean_by_display(earswham_ds,  'pesq')
+    mert_gensvs   = _mean_by_display(gensvs_ds,    'mert_mse')
+    mert_msrbench = _mean_by_display(msrbench_ds,  'mert_mse')
 
-    dataset_metrics = {}
-    for dataset in datasets:
-        sub = df_diff[df_diff['dataset'] == dataset]
-        if sub.empty and include_all_datasets:
-            dataset_metrics[dataset] = [m for m in METRIC_ORDER if m in metrics_for_dataset(dataset)]
-        else:
-            dataset_metrics[dataset] = [
-                m for m in METRIC_ORDER
-                if f'{m}_mean' in sub.columns and not sub[f'{m}_mean'].isna().all()
-            ]
+    if not pesq or not (mert_gensvs or mert_msrbench):
+        print('Warning: Required metric data missing for PESQ vs MERT-MSE tradeoff plot')
+        mpl.rcParams['font.family']      = prev_font_family
+        mpl.rcParams['font.serif']       = prev_font_serif
+        mpl.rcParams['mathtext.fontset'] = prev_mathtext
+        return
 
-    # iteration-based stats
-    iter_stats = {}
-    for dataset in datasets:
-        sub = df_diff[df_diff['dataset'] == dataset]
-        iter_stats[dataset] = {}
-        for model in sub['model'].unique():
-            msub = sub[sub['model'] == model]
-            iter_stats[dataset][model] = {}
-            for metric in dataset_metrics[dataset]:
-                vals = msub[f'{metric}_mean'].dropna()
-                if len(vals):
-                    iter_stats[dataset][model][metric] = {
-                        'mean': vals.mean(),
-                        'std_iter': vals.std(ddof=std_ddof),
-                    }
+    # Build per-display-name rows for plotting
+    all_names = set(mert_gensvs) | set(mert_msrbench)
+    rows = []
+    for dn in all_names:
+        if dn not in pesq:
+            continue
+        family = _get_family_from_display(dn)
+        if family is None:
+            continue
+        rows.append({
+            'model':           dn,
+            'family':          family,
+            'pesq':            pesq[dn],
+            'mert_mse_gensvs':   mert_gensvs.get(dn, np.nan),
+            'mert_mse_msrbench': mert_msrbench.get(dn, np.nan),
+        })
 
-    # ---- Build dataset-file std from raw per-iteration CSVs ----
-    filtered = [
-        (dataset, model, iteration, csv_path)
-        for dataset, model, iteration, csv_path in csv_list
-        if model_filter_fn(model) and (iteration >= 0 if require_multi_iteration else True)
-    ]
-    grouped = defaultdict(list)
-    for dataset, model, iteration, csv_path in filtered:
-        grouped[(dataset, display_name_fn(model))].append((iteration, csv_path))
+    if not rows:
+        print('Warning: No matched model rows for PESQ vs MERT-MSE tradeoff plot')
+        mpl.rcParams['font.family']      = prev_font_family
+        mpl.rcParams['font.serif']       = prev_font_serif
+        mpl.rcParams['mathtext.fontset'] = prev_mathtext
+        return
 
-    dataset_std = {}
-    for dataset in datasets:
-        dataset_std[dataset] = {}
-        models_in_dataset = sorted({m for (d, m) in grouped.keys() if d == dataset})
-        for model in models_in_dataset:
-            dataset_std[dataset][model] = {}
-            iter_entries = sorted(grouped[(dataset, model)], key=lambda x: x[0])
-            for metric in dataset_metrics[dataset]:
-                per_iter_series = []
-                for _, csv_path in iter_entries:
-                    df_iter = pd.read_csv(csv_path)
-                    if metric not in df_iter.columns:
-                        continue
+    plot_df = pd.DataFrame(rows).dropna(subset=['pesq'])
+    if plot_df.empty:
+        print('Warning: No complete rows for PESQ vs MERT-MSE tradeoff plot')
+        mpl.rcParams['font.family']      = prev_font_family
+        mpl.rcParams['font.serif']       = prev_font_serif
+        mpl.rcParams['mathtext.fontset'] = prev_mathtext
+        return
 
-                    s = pd.to_numeric(df_iter[metric], errors='coerce')
-                    if 'file_id' in df_iter.columns:
-                        s.index = df_iter['file_id']
-                    s = s.dropna()
-                    if len(s):
-                        per_iter_series.append(s)
+    csv_path = os.path.join(output_dir, 'pesq_vs_mert_tradeoff.csv')
+    plot_df.to_csv(csv_path, index=False)
+    print(f'Saved PESQ vs MERT-MSE tradeoff data: {csv_path}')
 
-                if not per_iter_series:
+    family_colors = {'BSRNN': 'tab:blue', 'SGM': 'tab:orange'}
+
+    def _annotate(ax, x_col, y_col, offsets, is_msrbench):
+        combined_lora_drawn = False
+        for _, row in plot_df.iterrows():
+            family = row['family']
+            label  = _get_abbreviated_label(row['model'])
+            # Collapse LoRA-BSRNN rank 32 and 128 into one label to avoid overlap
+            if family == 'BSRNN' and label in {'LoRA\n32', 'LoRA\n128'}:
+                if combined_lora_drawn:
                     continue
+                label = 'LoRA\n32/128'
+                combined_lora_drawn = True
+            dx, dy, ha, va = offsets.get((family, label), _PESQ_MERT_LABEL_OFFSET_DEFAULT)
+            emphasize = (
+                (family == 'BSRNN' and label in {'full', 'LoRA\n32/128'}) or
+                (is_msrbench and family == 'SGM' and label == 'LoRA\n16')
+            )
+            ax.annotate(
+                label,
+                (row[x_col], row[y_col]),
+                xytext=(dx, dy),
+                textcoords='offset points',
+                fontsize=14,
+                alpha=0.9,
+                fontweight='bold' if emphasize else 'normal',
+                ha=ha,
+                va=va,
+            )
 
-                stacked = pd.concat(per_iter_series, axis=1)
-                per_file_mean_over_iters = stacked.mean(axis=1, skipna=True)
-                if len(per_file_mean_over_iters):
-                    dataset_std[dataset][model][metric] = per_file_mean_over_iters.std()
+    fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2), sharex=True)
 
-    # model order
-    all_models = set()
-    for dataset in datasets:
-        all_models |= set(iter_stats[dataset].keys())
-    ordered_models = [m for m in model_order if m in all_models]
-    ordered_models += sorted(all_models - set(ordered_models))
+    for family, fdf in plot_df.groupby('family', sort=False):
+        color  = family_colors.get(family, 'tab:gray')
+        marker = 'D' if family == 'SGM' else 'o'
+        for ax, y_col in zip(axes, ['mert_mse_gensvs', 'mert_mse_msrbench']):
+            ax.scatter(fdf['pesq'], fdf[y_col], s=60, color=color,
+                       label=family, marker=marker)
 
-    # best by rounded mean (ties bolded)
-    best = {}
-    for dataset in datasets:
-        best[dataset] = {}
-        for metric in dataset_metrics[dataset]:
-            vals = {
-                m: _rounded(iter_stats[dataset][m][metric]['mean'], metric)
-                for m in ordered_models
-                if m in iter_stats[dataset] and metric in iter_stats[dataset][m]
-            }
-            if not vals:
-                continue
-            if metric in LOWER_IS_BETTER:
-                best[dataset][metric] = min(vals.values())
-            else:
-                best[dataset][metric] = max(vals.values())
+    _annotate(axes[0], 'pesq', 'mert_mse_gensvs',   _PESQ_MERT_LABEL_OFFSETS_GENSVS,   is_msrbench=False)
+    _annotate(axes[1], 'pesq', 'mert_mse_msrbench', _PESQ_MERT_LABEL_OFFSETS_MSRBENCH, is_msrbench=True)
 
-    # ---- Build LaTeX ----
-    col_counts = [len(dataset_metrics[d]) for d in datasets]
-    total_metric_cols = sum(col_counts)
+    for ax, title in zip(axes, ['GenSVS/EARS-WHAM', 'MSRBench/EARS-WHAM']):
+        ax.set_title(title, fontsize=16)
+        ax.set_ylabel(r'MERT-MSE $\leftarrow$', fontsize=14)
+        ax.grid(alpha=0.3)
+        ax.tick_params(axis='both', labelsize=14)
 
-    lines = []
-    lines.append(r'\begin{table*}[ht]')
-    lines.append(r'  \centering')
-    lines.append(r'  \resizebox{\textwidth}{!}{%')
-    lines.append(r'  \setlength{\tabcolsep}{3pt}%')
-    lines.append(r'  \begin{tabular}{l' + 'r' * total_metric_cols + '}')
+    # Fine-tune y-axis formatting to match the original
+    axes[0].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+    axes[0].yaxis.set_major_locator(MultipleLocator(0.01))
+    axes[1].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
 
-    header1 = ['  Model']
-    for dataset, ncols in zip(datasets, col_counts):
-        label = DATASET_LABELS.get(dataset, dataset)
-        header1.append(f'\\multicolumn{{{ncols}}}{{c}}{{{label}}}')
-    lines.append('    ' + ' & '.join(header1) + ' \\\\')
+    xmin, xmax = axes[0].get_xlim()
+    axes[0].set_xlim(left=xmin - 0.03, right=xmax)
+    ymin, ymax = axes[0].get_ylim()
+    axes[0].set_ylim(bottom=ymin - 0.005, top=ymax)
 
-    col_cursor = 2
-    cmidrules = []
-    for ncols in col_counts:
-        cmidrules.append(f'\\cmidrule(lr){{{col_cursor}-{col_cursor + ncols - 1}}}')
-        col_cursor += ncols
-    lines.append('    ' + ' '.join(cmidrules))
+    axes[1].set_xlabel(r'PESQ $\rightarrow$', fontsize=14)
 
-    header2 = ['  ']
-    for dataset in datasets:
-        for metric in dataset_metrics[dataset]:
-            header2.append(get_metric_label(metric))
-    lines.append('    ' + ' & '.join(header2) + ' \\\\')
-    lines.append(r'    \midrule')
+    handles, labels = axes[0].get_legend_handles_labels()
+    axes[0].legend(
+        handles, labels,
+        loc='center right',
+        bbox_to_anchor=(0.98, 0.60),
+        ncol=1,
+        frameon=True, facecolor='white', edgecolor='black', framealpha=1.0,
+        fontsize=14, borderaxespad=0.0, handletextpad=0.3,
+    )
 
-    for model in ordered_models:
-        model_tex = model.replace('\n', ' ')
-        cells = [f'  {model_tex}']
-        for dataset in datasets:
-            for metric in dataset_metrics[dataset]:
-                if model in iter_stats[dataset] and metric in iter_stats[dataset][model]:
-                    mean_val = iter_stats[dataset][model][metric]['mean']
-                    std_iter = iter_stats[dataset][model][metric]['std_iter']
-                    std_data = dataset_std.get(dataset, {}).get(model, {}).get(metric, np.nan)
+    fig.tight_layout()
 
-                    mean_s = _fmt(mean_val, metric)
-                    iter_s = _fmt(std_iter, metric)
-                    data_s = _fmt(std_data, metric) if pd.notna(std_data) else '--'
-                    formatted = f"$\\, {mean_s} \\pm^{{\\textstyle {iter_s}}}_{{\\textstyle {data_s}}} $"
+    png_path = os.path.join(output_dir, 'pesq_vs_mert_tradeoff.png')
+    pdf_path = os.path.join(output_dir, 'pesq_vs_mert_tradeoff.pdf')
+    fig.savefig(png_path, dpi=300, bbox_inches='tight')
+    fig.savefig(pdf_path, bbox_inches='tight')
+    plt.close(fig)
+    print(f'Saved PESQ vs MERT-MSE tradeoff plot: {png_path}')
+    print(f'Saved PESQ vs MERT-MSE tradeoff plot: {pdf_path}')
 
-                    if _rounded(mean_val, metric) == best[dataset].get(metric):
-                        formatted = f'{{\\boldmath {formatted}}}'
-                    cells.append(formatted)
-                else:
-                    cells.append('--')
-        lines.append('    ' + ' & '.join(cells) + ' \\\\[4pt]')
-
-    lines.append(r'    \bottomrule')
-    lines.append(r'  \end{tabular}')
-    lines.append(r'  }%')
-    lines.append(r'\end{table*}')
-
-    tex = '\n'.join(lines) + '\n'
-    tex_path = os.path.join(output_dir, output_filename)
-    with open(tex_path, 'w') as f:
-        f.write(tex)
-    print(f'Saved LaTeX table (combined std): {tex_path}')
+    # Restore rcParams
+    mpl.rcParams['font.family']      = prev_font_family
+    mpl.rcParams['font.serif']       = prev_font_serif
+    mpl.rcParams['mathtext.fontset'] = prev_mathtext
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Aggregate results from multi-iteration model evaluations and create violin plots'
+        description='Aggregate results from multi-iteration model evaluations'
     )
     parser.add_argument('--csv-name', type=str, default='results.csv',
                        help='Name of CSV files to aggregate (e.g., results.csv, results_loudness_normalize.csv)')
@@ -2073,7 +1505,7 @@ def main():
     # Find all result CSVs
     print("\nFinding result CSV files...")
     csv_list = find_all_result_csvs(args.base_dir, args.csv_name, args.msrbench_csv_name)
-    
+
     print(f"Found {len(csv_list)} result files from:")
     
     # Group by dataset and model for display
@@ -2088,17 +1520,27 @@ def main():
             count = sum(1 for d, m, i, _ in csv_list if d == dataset and m == model)
             print(f"    - {model}: {count} iteration(s)")
     
+    # Load and aggregate results (non-merged, for comparison table)
+    print("\nAggregating results...")
+    df = load_and_aggregate_results(csv_list)
+    print(f"Aggregated data shape: {df.shape}")
+
     # Build dataset-aware merged LoRA view for all table exports.
     table_csv_list = build_table_csv_list_with_merged_lora(csv_list)
     table_df = load_and_aggregate_results(table_csv_list)
     print(f"Table view data shape (LoRA merged): {table_df.shape}")
-    
+
     # Create output directory
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
+    # Create comparison table (per-dataset summary CSVs)
+    print("\nCreating comparison table...")
+    create_comparison_table(df, args.output_dir)
+
     # Export requested cross-dataset deltas for selected model families/variants.
-    print("\nCreating GenSVS->MSRBench delta LaTeX table...")
+    print("\nCreating GenSVS->MSRBench delta summary table...")
     delta_df = export_gensvs_to_msrbench_delta_table(table_df, args.output_dir)
+    print("\nCreating GenSVS->MSRBench delta LaTeX table...")
     create_latex_table_gensvs_to_msrbench_delta(delta_df, args.output_dir)
 
     print("\nCreating combined SGM/BSRNN LaTeX table...")
@@ -2116,6 +1558,9 @@ def main():
         model_families,
         args.output_dir,
     )
+
+    print("\nCreating PESQ vs MERT-MSE tradeoff plot...")
+    create_pesq_vs_mert_tradeoff_plot(table_df, args.output_dir)
 
     print(f"\nAll output saved to: {args.output_dir}")
 

@@ -94,13 +94,7 @@ This ensures all Python dependencies are installed at the exact versions used du
 ### SGM (score-based diffusion model)
 
 ```bash
-python train_sgm_from_scratch.py \
-    --backbone ncsnpp_48k \
-    --sde ouve \
-    --base_dir /path/to/MSS_datasets \
-    --format MSS \
-    --dataset_str musdb \
-    --target_str vocals
+python finetune_sgm.py --config configs/sgm_scratch.toml
 ```
 
 ### BSRNN

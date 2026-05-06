@@ -11,7 +11,7 @@ random_mix = true
 add_augmentation = true
 full_mix_percentage = 0.5
 use_musdb_test_as_valid = false
-custom_valid_dir = "./test_set/gensvs_eval_audio"
+custom_valid_dir = "./test_sets/gensvs_eval_audio"
 
 # Training runtime configuration
 start_with_validation = false

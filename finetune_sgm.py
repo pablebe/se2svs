@@ -39,6 +39,15 @@ sys.modules['sgmse.sdes'] = models.sgmse.sdes
 sys.modules['sgmse.backbones'] = models.sgmse.backbones
 sys.modules['sgmse.util'] = models.sgmse.util
 
+# # Legacy checkpoints may still reference the pre-rename package path.
+# sys.modules['sgmsvs_mod'] = models
+# sys.modules['sgmsvs_mod.data_module'] = models.data_module
+# sys.modules['sgmsvs_mod.MSS_model'] = models.MSS_model
+# sys.modules['sgmsvs_mod.sgmse'] = models.sgmse
+# sys.modules['sgmsvs_mod.sgmse.sdes'] = models.sgmse.sdes
+# sys.modules['sgmsvs_mod.sgmse.backbones'] = models.sgmse.backbones
+# sys.modules['sgmsvs_mod.sgmse.util'] = models.sgmse.util
+
 # Register safe globals for PyTorch 2.6+ (allows these classes in checkpoints)
 from models.data_module import SpecsDataModule
 from models.MSS_model import ScoreModel

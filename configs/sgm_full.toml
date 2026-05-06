@@ -27,4 +27,3 @@ spec_abs_exponent = 0.667
 sigma_min = 0.1
 sigma_max = 1.0
 theta = 2.0
-ckpt = "./logs/260211_1740_SGMSE_naive_finetune/last.ckpt"

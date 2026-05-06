@@ -835,8 +835,15 @@ class ScoreModel(pl.LightningModule):
                     if checkpoint['ema'].get('collected_params') is not None:
                         checkpoint['ema']['collected_params'] = \
                             checkpoint['ema']['collected_params'][:current_n]
-                    self.ema.load_state_dict(checkpoint['ema'])
-                    print(f"   ✓ EMA loaded successfully ({current_n} shadow params).")
+                    try:
+                        self.ema.load_state_dict(checkpoint['ema'])
+                        print(f"   ✓ EMA loaded successfully ({current_n} shadow params).")
+                    except ValueError as e:
+                        warnings.warn(
+                            f"EMA load still mismatched after truncation ({e}). "
+                            f"Reinitializing EMA."
+                        )
+                        self.ema = ExponentialMovingAverage(self._ema_params(), decay=self.ema_decay)
                 else:
                     warnings.warn(
                         f"EMA shadow_params mismatch and cannot recover "

@@ -39,7 +39,7 @@ sys.modules['sgmse.sdes'] = models.sgmse.sdes
 sys.modules['sgmse.backbones'] = models.sgmse.backbones
 sys.modules['sgmse.util'] = models.sgmse.util
 
-# # Legacy checkpoints may still reference the pre-rename package path.
+# Legacy checkpoints may still reference the pre-rename package path.
 # sys.modules['sgmsvs_mod'] = models
 # sys.modules['sgmsvs_mod.data_module'] = models.data_module
 # sys.modules['sgmsvs_mod.MSS_model'] = models.MSS_model
@@ -241,6 +241,10 @@ if __name__ == '__main__':
                if not match:
                     diff = (checkpoint_weight - model_weight).abs().max()
                     print(f"  Max difference: {diff}")
+                    raise RuntimeError(
+                         "Pretrained base-model verification failed: sampled checkpoint "
+                         "weights do not match model base weights after loading."
+                    )
           
           print(f"{'='*70}\n")
           

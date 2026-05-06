@@ -124,13 +124,27 @@ def _sgm_ptflops_input_constructor(input_res):
     return {"x": x, "time_cond": time_cond}
 
 
-def load_sgm_backbone_for_profile(ckpt_path: Path):
+def load_sgm_backbone_for_profile(ckpt_path: Path, root_dir: Path):
     """Instantiate SGM backbone directly from checkpoint hparams and dnn weights."""
     checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     hparams = checkpoint.get("hyper_parameters", {})
     backbone_name = hparams.get("backbone")
     if backbone_name is None:
         raise RuntimeError(f"Checkpoint missing 'backbone' in hyper_parameters: {ckpt_path}")
+
+    # Some legacy checkpoints store stale LoRA base-checkpoint paths.
+    # Normalize to the current repository layout when possible.
+    lora_ckpt = hparams.get("lora_pretrained_checkpoint")
+    if isinstance(lora_ckpt, str) and lora_ckpt:
+        legacy = "./sgmse_checkpoints/ears_wham.ckpt"
+        if lora_ckpt == legacy:
+            hparams["lora_pretrained_checkpoint"] = str(root_dir / "checkpoints/sgmse_pretrained/ears_wham.ckpt")
+        else:
+            p = Path(lora_ckpt)
+            if not p.exists():
+                candidate = root_dir / lora_ckpt.lstrip("./")
+                if candidate.exists():
+                    hparams["lora_pretrained_checkpoint"] = str(candidate)
 
     dnn_cls = BackboneRegistry.get_by_name(backbone_name)
 
@@ -173,7 +187,7 @@ def profile_sgm_with_ptflops(dnn, hparams: Dict) -> Tuple[float, float]:
     return float(macs), float(params)
 
 
-def load_bsrnn_model_for_profile(ckpt_path: Path) -> BSRNNSVSModel:
+def load_bsrnn_model_for_profile(ckpt_path: Path, root_dir: Path) -> BSRNNSVSModel:
     """Load BSRNNSVSModel in the same robust style as inference code."""
 
     class InferenceDataModule:
@@ -181,6 +195,27 @@ def load_bsrnn_model_for_profile(ckpt_path: Path) -> BSRNNSVSModel:
             pass
 
     checkpoint = BSRNNSVSModel._load_checkpoint_raw(str(ckpt_path))
+
+    # Some legacy checkpoints store stale pretrained_ckpt hparams such as
+    # './bsrnn_checkpoint/bsrnn.ckpt'. Override to current repo layout.
+    pretrained_override = None
+    hparams = checkpoint.get("hyper_parameters", {}) if isinstance(checkpoint, dict) else {}
+    hp_pretrained = hparams.get("pretrained_ckpt") if isinstance(hparams, dict) else None
+    if isinstance(hp_pretrained, str) and hp_pretrained:
+        legacy_candidates = {
+            "./bsrnn_checkpoint/bsrnn.ckpt",
+            "bsrnn_checkpoint/bsrnn.ckpt",
+            "./checkpoints/bsrnn_checkpoint/bsrnn.ckpt",
+            "checkpoints/bsrnn_checkpoint/bsrnn.ckpt",
+        }
+        if hp_pretrained in legacy_candidates:
+            pretrained_override = str(root_dir / "checkpoints/bsrnn_pretrained/bsrnn.ckpt")
+        else:
+            p = Path(hp_pretrained)
+            if not p.exists():
+                candidate = root_dir / hp_pretrained.lstrip("./")
+                if candidate.exists():
+                    pretrained_override = str(candidate)
 
     def _extract_state_dict_for_probe(checkpoint_obj):
         if not isinstance(checkpoint_obj, dict):
@@ -216,6 +251,7 @@ def load_bsrnn_model_for_profile(ckpt_path: Path) -> BSRNNSVSModel:
             map_location="cpu",
             data_module_cls=InferenceDataModule,
             base_dir=base_dir,
+            pretrained_ckpt=pretrained_override,
             strict=False,
         )
 
@@ -259,7 +295,7 @@ def build_ptflops_complexity_table(root_dir: Path) -> pd.DataFrame:
         print(f"Processing {spec.display_name}...")
 
         if spec.family == "SGM":
-            dnn, hparams = load_sgm_backbone_for_profile(ckpt_path)
+            dnn, hparams = load_sgm_backbone_for_profile(ckpt_path, root_dir)
             macs, _ = profile_sgm_with_ptflops(dnn, hparams)
             profile_seconds = float(hparams.get("duration", 5.0))
             # Count all parameters (frozen base + trainable LoRA adapters).
@@ -268,7 +304,7 @@ def build_ptflops_complexity_table(root_dir: Path) -> pd.DataFrame:
             params = sum(p.numel() for p in dnn.parameters())
             trainable_params = sum(p.numel() for p in dnn.parameters() if p.requires_grad)
         else:
-            model = load_bsrnn_model_for_profile(ckpt_path)
+            model = load_bsrnn_model_for_profile(ckpt_path, root_dir)
             macs, _ = profile_bsrnn_with_ptflops(model)
             profile_seconds = 1.0
             # Same fix: count all params in dnn, not just trainable ones.

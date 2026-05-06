@@ -205,7 +205,7 @@ python evaluate_speech.py \
 
 ### Aggregate and plot results
 
-Aggregate results across all models and datasets and generate violin plots:
+Reproduce results tables and plots of the paper with:
 
 ```bash
 python aggregate_and_plot_results.py --base-dir .

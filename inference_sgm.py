@@ -80,8 +80,8 @@ parser.add_argument("--no-lora",  action="store_true", default=False,
                     help="Disable LoRA adapter (run base model only)")
 parser.add_argument("--device",   type=str,
                     default="cuda" if torch.cuda.is_available() else "cpu")
-parser.add_argument("--N",        type=int, default=None,
-                    help="Number of reverse diffusion steps (default: use model's SDE.N)")
+parser.add_argument("--N",        type=int, default=45,
+                    help="Number of reverse diffusion steps (default: 45)")
 parser.add_argument("--sampler",  type=str, default="pc",
                     choices=("pc", "ode"), help="Sampler type")
 parser.add_argument("--corrector", type=str, default="ald",
@@ -106,21 +106,6 @@ model = ScoreModel.load_from_checkpoint(
     weights_only=False,
 )
 model.to(args.device)
-
-# ── Set model to eval mode (automatically applies EMA weights via train(False)) ─
-# During training, the overridden train(False) method automatically swaps to EMA weights.
-# This happens when calling model.eval() because eval() internally calls train(False).
-#print("Setting model to eval mode (EMA weights will be applied automatically)...")
-
-# Check if EMA will be applied
-# if hasattr(model, '_error_loading_ema') and model._error_loading_ema:
-#     print("⚠️  ERROR: EMA loading failed - model will use non-EMA weights!")
-#     print("   This will result in lower performance than validation metrics!")
-# elif hasattr(model, 'ema') and model.ema.shadow_params:
-#     print(f"✓ EMA available with {len(model.ema.shadow_params)} parameters")
-#     print("  EMA weights will be automatically applied by model.eval()")
-# else:
-#     print("⚠️  Warning: No EMA weights found in model")
 
 model.eval()
 print("✓ Model in eval mode")
@@ -160,13 +145,9 @@ else:
 pad_mode = "reflection"
 target_sr = model.sr
 
-# ── Use model's N if not specified ─────────────────────────────────────────── 
-if args.N is None:
-    N = model.sde.N
-    print(f"Using model's default N={N} diffusion steps (from SDE)")
-else:
-    N = args.N
-    print(f"Using user-specified N={N} diffusion steps (model default: {model.sde.N})")
+# ── Use N from CLI/default ─────────────────────────────────────────────────── 
+N = args.N
+print(f"Using N={N} diffusion steps (model checkpoint default: {model.sde.N})")
 
 # Use model's sampler_type if available (matches validation behavior)
 sampler_type = model.sde.sampler_type if hasattr(model.sde, 'sampler_type') else args.sampler
@@ -267,87 +248,6 @@ for iteration in range(0, args.n_iterations):
         out_path = join(out_dir_iter, f"{stem}_separated."+data_format)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         sf.write(out_path, x_hat, sr)
-# Now force EMA weights into the model
-# model.ema.copy_to(model.parameters())
-
-# for wav_path in tqdm(wav_files, desc="Processing"):
-#     # Load audio
-#     y_np, sr = sf.read(wav_path, always_2d=True)   # (T, C)
-#     y_np = y_np.T.astype('float32')                 # (C, T)
-#     y = resample(y_np, orig_sr=sr, target_sr=model.sr)  # Resample to model SR
-#     y = torch.from_numpy(y)                      # (C, T)
-#     x_hat = model.enhance(y=y, N=model.sde.N)
-
-#     x_hat = resample(x_hat, orig_sr=model.sr, target_sr=sr)
-
-
-#     rel_path = os.path.relpath(wav_path, args.test_dir)
-#     stem = splitext(rel_path)[0]
-#     out_path = join(args.out_dir+'_force_ema', f"{stem}_separated.wav")
-#     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-#     sf.write(out_path, x_hat, sr)
-    
-
-
-    # T_orig = y.shape[1]
-    # norm_factor = y.abs().max()
-    # y = y / norm_factor
-
-    # # Set seed for deterministic inference if specified (validation uses stochastic sampling)
-    # if args.seed is not None:
-    #     torch.manual_seed(args.seed)
-    #     np.random.seed(args.seed)
-
-    # with torch.no_grad():
-    #     # STFT → model input
-    #     if y.shape[0] > 1:
-    #         Y = torch.unsqueeze(
-    #             model._forward_transform(model._stft(y.to(args.device))), 1
-    #         )
-    #     else:
-    #         Y = torch.unsqueeze(
-    #             model._forward_transform(model._stft(y.to(args.device))), 0
-    #         )
-    #     Y = pad_spec(Y, mode=pad_mode)
-
-    #     # Channel-by-channel sampling
-    #     x_hat_channels = []
-    #     for ch in range(Y.shape[0]):
-    #         Y_ch = Y[ch, ...][None, ...].to(args.device)
-    #         sde_name = model.sde.__class__.__name__
-
-    #         if sde_name == 'OUVESDE':
-    #             if sampler_type == 'pc':
-    #                 sampler = model.get_pc_sampler(
-    #                     'reverse_diffusion', args.corrector, Y_ch,
-    #                     N=N, corrector_steps=args.corrector_steps,
-    #                     snr=args.snr,
-    #                 )
-    #             else:
-    #                 sampler = model.get_ode_sampler(Y_ch, N=N)
-    #         elif sde_name == 'SBVESDE':
-    #             sampler_type_sb = 'ode' if sampler_type == 'pc' else sampler_type
-    #             sampler = model.get_sb_sampler(
-    #                 sde=model.sde, y=Y_ch, sampler_type=sampler_type_sb
-    #             )
-    #         else:
-    #             raise ValueError(f"Unsupported SDE: {sde_name}")
-
-    #         sample, _ = sampler()
-    #         x_hat_channels.append(model.to_audio(sample.squeeze(), T_orig))
-
-    #     x_hat = torch.stack(x_hat_channels, dim=0)   # (C, T)
-
-    # # Renormalise
-    # x_hat = (x_hat * norm_factor).cpu().numpy()      # (C, T)
-    # x_hat = x_hat.T                                   # (T, C) for soundfile
-
-    # # Write (preserve subdirectory structure if present)
-    # rel_path = os.path.relpath(wav_path, args.test_dir)
-    # stem = splitext(rel_path)[0]
-    # out_path = join(args.out_dir, f"{stem}_separated.wav")
-    # os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    # sf.write(out_path, x_hat, target_sr)  # Save at model SR (48kHz)
 
 print(f"\nDone. Outputs written to: {args.out_dir}" +
       (f" (iter_1/ … iter_{args.n_iterations}/)" if args.n_iterations > 1 else ""))

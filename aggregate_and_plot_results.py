@@ -8,6 +8,8 @@ This script:
 3. Exports comparison CSVs and LaTeX tables per model and dataset
 """
 
+#TODO: Simplify string parsing, couldn't all strings for tables and plots be predefined, would this not reduce the amount of lines. 
+
 import argparse
 import os
 import re
@@ -628,7 +630,7 @@ def _delta_variant_to_compact_model_label(variant):
     mapping = {
         'full finetuning': 'full fine-tuning',
         'full fine-tuning': 'full fine-tuning',
-        'LoRA 16': 'LoRA (rank 16)',
+        'LoRA 16': 'LoRA 16',
         'from scratch': 'from scratch',
     }
     return mapping.get(variant, variant)
@@ -771,7 +773,7 @@ def compact_combined_model_label(display_model, family):
     if 'lora' in lowered:
         rank_match = re.search(r'rank\s*(\d+)', lowered)
         if rank_match:
-            return f'LoRA (rank {rank_match.group(1)})'
+            return f'LoRA {rank_match.group(1)}'
         return 'LoRA'
     if 'full fine tuning' in lowered or 'full finetuning' in lowered:
         return 'full fine-tuning'
@@ -805,7 +807,7 @@ def _canonical_model_name_from_compact_label(model_label, family_key):
     if lowered in {'no finetuning', 'base'}:
         return 'SGMSE (base)' if family_key == 'SGM' else 'BSRNNSE (base)'
 
-    rank_match = re.search(r'rank\s*(\d+)', lowered)
+    rank_match = re.search(r'(?:rank\s*|lora\s+)(\d+)', lowered)
     if rank_match:
         rank = rank_match.group(1)
         if family_key == 'SGM':

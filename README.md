@@ -1,13 +1,10 @@
-# se2svs — Teaching Speech Enhancement Models to Sing
-
-**Domain Adaptation from Speech Enhancement to Singing Voice Separation**
-
-> Paul A. Bereuter, Mark D. Plumbley, Alois Sontacchi
+# se2svs — Teaching Speech Enhancement Models to Sing: Domain Adaptation from Speech Enhancement to Singing Voice Separation
+This repository contains the code accompanying the paper "Teaching Speech Enhancement Models to Sing: Domain Adaptation from Speech Enhancement to Singing Voice Separation" by Paul A. Bereuter, Mark D. Plumbley, Alois Sontacchi
 <!-- > *To be presented  2026* -->
 
 🎧 **[Demo page with audio examples](https://pablebe.github.io/se2svs-webpage/)**
 
-📦 **[Test-set audio + result CSVs (Zenodo)](<dummy-url>)**
+📊 **[Test-set results: Audio + Result CSVs (Zenodo)](<dummy-url>)**
 
 📄 **[arXiv preprint](<arxiv-url>)**
 

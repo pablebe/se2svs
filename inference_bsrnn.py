@@ -192,11 +192,14 @@ def main() -> None:
         )
         print("Checkpoint load mode: finetune-style pretrained_ckpt")
     else:
+        print("Ignoring checkpoint hyperparameter pretrained_ckpt in inference mode.")
+
         model = BSRNNSVSModel.load_from_checkpoint(
             args.ckpt,
             map_location=args.device,
             data_module_cls=InferenceDataModule,
             base_dir=base_dir,
+            pretrained_ckpt=None,
             strict=False,
         )
         print("Checkpoint load mode: Lightning load_from_checkpoint")

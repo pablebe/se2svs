@@ -98,17 +98,19 @@ args = parser.parse_args()
 
 # ── Load model ─────────────────────────────────────────────────────────────── 
 print(f"Loading checkpoint: {args.ckpt}")
-ckpt = torch.load(args.ckpt, map_location='cpu', weights_only=False)
 model = ScoreModel.load_from_checkpoint(
     args.ckpt,
     map_location=args.device,
+    lora_pretrained_checkpoint=None,
     strict=True,
     weights_only=False,
 )
 model.to(args.device)
 
-model.eval()
-print("✓ Model in eval mode")
+# Keep checkpoint-loaded weights as-is during inference. ScoreModel.eval()
+# swaps in EMA weights by default; if EMA restoration failed, that can reset
+# LoRA adapter params back to their initialization while leaving base weights.
+model.eval(no_ema=True)
 
 # ── Toggle LoRA adapter ────────────────────────────────────────────────────── 
 # Check if model has PEFT structure: model.dnn (NCSNpp_48k_LoRA) -> model.dnn.model (PeftModel)
@@ -133,6 +135,10 @@ if is_lora:
         # Adapters are enabled by default in PEFT, but we can make sure
         print("LoRA adapter: ENABLED")
         try:
+            model.dnn.model.set_adapter("default")
+        except Exception:
+            pass
+        try:
             model.dnn.model.enable_adapter_layers()
         except AttributeError:
             pass
@@ -155,7 +161,6 @@ if sampler_type != args.sampler:
     print(f"Note: Using model's sampler_type='{sampler_type}' (overriding --sampler='{args.sampler}')")
 
 print(f"Sampler: {sampler_type}, Corrector: {args.corrector}, Corrector steps: {args.corrector_steps}, SNR: {args.snr}")
-print(f"SDE type: {model.sde.__class__.__name__}, Model SDE sampler_type: {model.sde.sampler_type if hasattr(model.sde, 'sampler_type') else 'N/A'}")
 print(f"Seed: {args.seed if args.seed is not None else 'None (stochastic, matching validation)'}")
 print("-" * 70)
 
@@ -173,22 +178,6 @@ os.makedirs(args.out_dir, exist_ok=True)
 
 if args.n_iterations > 1:
     print(f"Running {args.n_iterations} iterations, writing to {args.out_dir}/iter_{{1..{args.n_iterations}}}/")
-
-
-#check ema force loading:
-# param = next(model.parameters())
-# ema_param = model.ema.shadow_params[0]
-
-# diff_before = torch.norm(param - ema_param).item()
-# print("Difference before forcing EMA:", diff_before)
-
-# model.ema.copy_to(model.parameters())
-
-# param = next(model.parameters())
-# ema_param = model.ema.shadow_params[0]
-
-# diff_after = torch.norm(param - ema_param).item()
-# print("Difference after forcing EMA:", diff_after)
 
 # ── Inference loop ────────────────────────────────────────────────────────────
 
@@ -239,15 +228,17 @@ for iteration in range(0, args.n_iterations):
                                 corrector=args.corrector,
                                 corrector_steps=args.corrector_steps, snr=args.snr)
 
+        x_hat_out = np.asarray(x_hat)
+
         if sr != model.sr:
-            x_hat = resample(x_hat, orig_sr=model.sr, target_sr=sr)
+            x_hat_out = resample(x_hat_out, orig_sr=model.sr, target_sr=sr)
 
         rel_path = os.path.relpath(wav_path, args.test_dir)
         stem = splitext(rel_path)[0]
         data_format = wav_path.split('.')[-1]  # Preserve original format (wav or flac)
         out_path = join(out_dir_iter, f"{stem}_separated."+data_format)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        sf.write(out_path, x_hat, sr)
+        sf.write(out_path, x_hat_out, sr)
 
 print(f"\nDone. Outputs written to: {args.out_dir}" +
       (f" (iter_1/ … iter_{args.n_iterations}/)" if args.n_iterations > 1 else ""))

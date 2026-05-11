@@ -4,6 +4,8 @@ This repository contains the code accompanying the paper "Teaching Speech Enhanc
 
 🎧 **[Demo page with audio examples](https://pablebe.github.io/se2svs-webpage/)**
 
+🤗 **[Model checkpoints (Hugging Face)](https://huggingface.co/collections/pablebe/se2svs-model-checkpoints)**
+
 📊 **[Test-set results: Audio + Result CSVs (Zenodo)](<dummy-url>)**
 
 📄 **[arXiv preprint](<arxiv-url>)**
@@ -162,31 +164,27 @@ Available SGM configs:
 ### BSRNN — fine-tuned checkpoint
 
 ```bash
-python infer_bsrnn_finetuned_models.py \
+python inference_bsrnn.py \
   --ckpt ./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
   --test-dir ./test_sets/gensvs_eval_audio/mixture \
   --out-dir ./test_sets/gensvs_eval_audio/bsrnn_lora_r16
 ```
 
-### SGM — inference (base, from-scratch, full finetuned, or LoRA)
+### SGM — checkpoint inference (base, from-scratch, full finetuned, or LoRA)
 
 ```bash
 python inference_sgm.py \
-    --ckpt ./checkpoints/sgmse_pretrained/ears_wham.ckpt \
-    --test-dir ./test_sets/gensvs_eval_audio/mixture \
-    --out-dir ./test_sets/gensvs_eval_audio/sgm_base
+  --ckpt <checkpoint_path> \
+  --test-dir ./test_sets/gensvs_eval_audio/mixture \
+  --out-dir <output_dir>
 ```
+
+Common checkpoint examples:
+
+- Base SGM: `./checkpoints/sgmse_pretrained/ears_wham.ckpt`
+- Fine-tuned SGM (LoRA or full): `./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt`
 
 Default settings in `inference_sgm.py`: `--sampler pc`, `--corrector ald`, `--corrector-steps 2`, `--snr 0.5`, and `--N 45`.
-
-### SGM — fine-tuned checkpoint (LoRA or full)
-
-```bash
-python inference_sgm.py \
-    --ckpt ./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
-    --test-dir ./test_sets/gensvs_eval_audio/mixture \
-    --out-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16
-```
 
 Pass `--no-lora` to disable LoRA adapters and evaluate the base model through the fine-tuned checkpoint.
 

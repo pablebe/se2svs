@@ -194,36 +194,45 @@ Pass `--no-lora` to disable LoRA adapters and evaluate the base model through th
 
 ### Separation metrics (SDR, MR-STFT loss, MERT-MSE)
 
+For BSRNN models with a single output directory:
+
 ```bash
 python evaluate_separation.py \
-    --separated-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 \
+    --separated-dir ./test_sets/gensvs_eval_audio/bsrnn_lora_r16 \
     --target-dir ./test_sets/gensvs_eval_audio/target \
-    --output-csv ./test_sets/gensvs_eval_audio/sgm_lora_r16/results.csv
-```
-Compute summary statistics across evaluation iterations:
-
-```bash
-python evaluate_separation.py --separated-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 --target-dir ./test_sets/gensvs_eval_audio/target
+    --output-csv ./test_sets/gensvs_eval_audio/bsrnn_lora_r16/results.csv
 ```
 
-For SGM outputs with multiple enhanced signal realizations stored in subdirectories, evaluate all runs with:
+For SGM models with multiple enhanced signal realizations stored in `iter_NNN_seedXX/` subdirectories, use `--multi-run-dir` to evaluate all iterations at once:
 
 ```bash
 python evaluate_separation.py \
   --multi-run-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 \
-  --target-dir test_sets/gensvs_eval_audio/target
+  --target-dir ./test_sets/gensvs_eval_audio/target
 ```
 
-This scans each subdirectory under `--multi-run-dir` and writes a `results.csv` file into each run folder.
+This scans each subdirectory under `--multi-run-dir` and writes a `results.csv` into each run folder.
 
 ### Speech enhancement metrics (SI-SDR, PESQ, STOI, DNSMOS, DistillMOS)
 
+For BSRNN models with a single output directory:
+
 ```bash
 python evaluate_speech.py \
-  --separated-dir ./test_sets/ears_wham/sgm_lora_r16 \
+  --separated-dir ./test_sets/ears_wham/bsrnn_lora_r16 \
   --target-dir ./test_sets/ears_wham/clean \
-  --output-csv ./test_sets/ears_wham/sgm_lora_r16/results.csv
+  --output-csv ./test_sets/ears_wham/bsrnn_lora_r16/speech_metrics_results.csv
 ```
+
+For SGM models with multiple enhanced signal realizations stored in `iter_NNN_seedXX/` subdirectories, use `--multi-run-dir` to evaluate all iterations at once:
+
+```bash
+python evaluate_speech.py \
+  --multi-run-dir ./test_sets/ears_wham/sgm_lora_r16 \
+  --target-dir ./test_sets/ears_wham/clean
+```
+
+This scans each subdirectory under `--multi-run-dir` and writes a `speech_metrics_results.csv` into each run folder.
 
 ### Aggregate and plot results
 
@@ -258,7 +267,7 @@ env_info/           Conda environment and pip requirements files
 
 ## Citation
 
-If you use this code, please cite:
+If you use this code or the associated models, please cite:
 
 ```bibtex
 @INPROCEEDINGS{bereuter2026se2svs,

@@ -196,7 +196,11 @@ python evaluate_separation.py \
     --target-dir test_sets/gensvs_eval_audio/target \
     --output-csv test_sets/gensvs_eval_audio/sgm_lora_r16/results.csv
 ```
+Compute summary statistics across evaluation iterations:
 
+```bash
+python evaluate_separation.py --separated-dir test_sets/gensvs_eval_audio/sgm_lora_r16 --target-dir test_sets/gensvs_eval_audio/target
+```
 ### Speech enhancement metrics (SI-SDR, PESQ, STOI, DNSMOS, DistillMOS)
 
 ```bash
@@ -212,12 +216,6 @@ Reproduce results tables and plots of the paper with:
 
 ```bash
 python aggregate_and_plot_results.py --base-dir .
-```
-
-Compute summary statistics across evaluation iterations:
-
-```bash
-python evaluate_separation.py --separated-dir test_sets/gensvs_eval_audio/sgm_lora_r16 --target-dir test_sets/gensvs_eval_audio/target
 ```
 
 Aggregated result summaries are stored in `aggregated_results/`.

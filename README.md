@@ -19,8 +19,8 @@ State-of-the-art speech enhancement (SE) models benefit from large-scale labeled
 | **LoRA fine-tuning** | Only low-rank adapter weights trained |
 
 Both strategies are applied to:
-- **SGM** — a generative score-based diffusion model (SGMSE+, `ncsnpp_48k` backbone)
 - **BSRNN** — a discriminative band-split RNN model
+- **SGM** — a generative score-based diffusion model (SGMSE+, `ncsnpp_48k` backbone)
 
 Models fine-tuned from a pretrained SE checkpoint outperform the same architectures trained from scratch by **0.2–1.8 dB SDR**. LoRA fine-tuning preserves the original speech enhancement capability while achieving competitive SVS performance, whereas full fine-tuning leads to catastrophic forgetting on SE tasks.
 
@@ -34,8 +34,8 @@ Base model checkpoints are not included in that script and must be downloaded se
 
 | File | Source | Description |
 |---|---|---|
-| `sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |
 | `bsrnn_pretrained/bsrnn.ckpt` | [Hugging Face — bsrnn.ckpt](https://huggingface.co/lichenda/icassp_2026_urgent_baseline/blob/main/bsrnn.ckpt) | Base BSRNN model pretrained on speech enhancement |
+| `sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |
 
 ## Test sets
 To reproduce the evaluation on the 
@@ -91,35 +91,50 @@ This ensures all Python dependencies are installed at the exact versions used du
 
 ## Training from scratch
 
-All training commands below use `--config` and load parameters from TOML files in `configs/`.
+All training commands below use `--config` and load parameters from TOML files in `./configs/`.
 All arguments defined in these TOML files are also parseable as CLI flags.
-
-### SGM (score-based diffusion model)
-
-```bash
-python finetune_sgm.py --config configs/sgm_scratch.toml
-```
 
 ### BSRNN
 
 ```bash
-python train_bsrnn_from_scratch.py --config configs/bsrnn_scratch.toml
+python train_bsrnn_from_scratch.py --config ./configs/bsrnn_scratch.toml
+```
+
+### SGM (score-based diffusion model)
+
+```bash
+python finetune_sgm.py --config ./configs/sgm_scratch.toml
 ```
 
 ---
-
 ## Fine-tuning
 
-All fine-tuning scripts accept a TOML config file via `--config`. Example configs are provided in `configs/`.
+All fine-tuning scripts accept a TOML config file via `--config`. Example configs are provided in `./configs/`.
 All arguments defined in these TOML files are also parseable as CLI flags.
+
+### BSRNN — fine-tuning (LoRA or full)
+
+```bash
+python finetune_bsrnn.py --config ./configs/bsrnn_lora_r16.toml
+```
+
+Available BSRNN configs:
+
+| Config | Description |
+|---|---|
+| `./configs/bsrnn_full.toml` | Full fine-tuning of all BSRNN weights |
+| `./configs/bsrnn_lora_r16.toml` | LoRA fine-tuning (rank 16) |
+| `./configs/bsrnn_lora_r32.toml` | LoRA fine-tuning (rank 32) |
+| `./configs/bsrnn_lora_r128.toml` | LoRA fine-tuning (rank 128) |
+| `./configs/bsrnn_scratch.toml` | BSRNN training from scratch |
 
 ### SGM — LoRA fine-tuning
 
 ```bash
-python finetune_sgm.py --config configs/sgm_lora_r16.toml
+python finetune_sgm.py --config ./configs/sgm_lora_r16.toml
 ```
 
-Key config options (`configs/sgm_lora_r16.toml`):
+Key config options (`./configs/sgm_lora_r16.toml`):
 
 | Option | Description |
 |---|---|
@@ -131,28 +146,21 @@ Key config options (`configs/sgm_lora_r16.toml`):
 ### SGM — full / naive fine-tuning
 
 ```bash
-python finetune_sgm.py --config configs/sgm_full.toml
+python finetune_sgm.py --config ./configs/sgm_full.toml
 ```
-
-### BSRNN — fine-tuning (LoRA or full)
-
-```bash
-python finetune_bsrnn.py --config configs/bsrnn_lora_r16.toml
-```
-
-Available BSRNN configs:
-
-| Config | Description |
-|---|---|
-| `bsrnn_full.toml` | Full fine-tuning of all BSRNN weights |
-| `bsrnn_lora_r16.toml` | LoRA fine-tuning (rank 16) |
-| `bsrnn_lora_r32.toml` | LoRA fine-tuning (rank 32) |
-| `bsrnn_lora_r128.toml` | LoRA fine-tuning (rank 128) |
-| `bsrnn_scratch.toml` | BSRNN training from scratch |
 
 ---
 
 ## Inference
+
+### BSRNN — fine-tuned checkpoint
+
+```bash
+python infer_bsrnn_finetuned_models.py \
+  --ckpt logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
+  --test-dir test_sets/gensvs_eval_audio/mixture \
+  --out-dir test_sets/gensvs_eval_audio/bsrnn_lora_r16
+```
 
 ### SGM — inference (base, from-scratch, full finetuned, or LoRA)
 
@@ -175,15 +183,6 @@ python inference_sgm.py \
 ```
 
 Pass `--no-lora` to disable LoRA adapters and evaluate the base model through the fine-tuned checkpoint.
-
-### BSRNN — fine-tuned checkpoint
-
-```bash
-python infer_bsrnn_finetuned_models.py \
-    --ckpt logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
-    --test-dir test_sets/gensvs_eval_audio/mixture \
-    --out-dir test_sets/gensvs_eval_audio/bsrnn_lora_r16
-```
 
 ---
 
@@ -229,11 +228,11 @@ Aggregated result summaries are stored in `aggregated_results/`.
 
 ```
 configs/            TOML configs for all training/fine-tuning runs
-models/             Model code (SGM, BSRNN, data module, SDE, backbones)
+models/             Model code (BSRNN, SGM, data module, SDE, backbones)
   sgmse/            Third-party code from https://github.com/sp-uhh/sgmse (MIT license)
 checkpoints/        Model checkpoints [download required; for instructions see section "Model checkpoints"]
-  sgmse_pretrained/ Pretrained SE checkpoint 
   bsrnn_pretrained/ Pretrained BSRNN checkpoint 
+  sgmse_pretrained/ Pretrained SE checkpoint 
   se2svs/           Fine-tuned and from-scratch model checkpoints 
 test_sets/          Evaluation datasets and per-model output folders [download required; for instructions see section "Test sets"]
 aggregated_results/ Aggregated metric CSVs and plots
@@ -256,18 +255,6 @@ If you use this code, please cite:
 }
 ```
 
-If you use the **SGM base model** (`ears_wham.ckpt`), please also cite:
-
-```bibtex
-@inproceedings{richter2024ears,
-  title={{EARS}: An Anechoic Fullband Speech Dataset Benchmarked for Speech Enhancement and Dereverberation},
-  author={Richter, Julius and Wu, Yi-Chiao and Krenn, Steven and Welker, Simon and Lay, Bunlong and Watanabe, Shinjii and Richard, Alexander and Gerkmann, Timo},
-  booktitle={ISCA Interspeech},
-  pages={4873--4877},
-  year={2024}
-}
-```
-
 If you use the **BSRNN base model** (`bsrnn.ckpt`), please also cite:
 
 ```bibtex
@@ -279,5 +266,17 @@ If you use the **BSRNN base model** (`bsrnn.ckpt`), please also cite:
   author={Li, Chenda and Zhang, Wangyou and Wang, Wei and Scheibler, Robin and Saijo, Kohei and Cornell, Samuele and Fu, Yihui and Sach, Marvin and Ni, Zhaoheng and Kumar, Anurag and Fingscheidt, Tim and Watanabe, Shinji and Qian, Yanmin},
   year={2025},
   note={arXiv:2506.23859 [eess]}
+}
+```
+
+If you use the **SGM base model** (`ears_wham.ckpt`), please also cite:
+
+```bibtex
+@inproceedings{richter2024ears,
+  title={{EARS}: An Anechoic Fullband Speech Dataset Benchmarked for Speech Enhancement and Dereverberation},
+  author={Richter, Julius and Wu, Yi-Chiao and Krenn, Steven and Welker, Simon and Lay, Bunlong and Watanabe, Shinjii and Richard, Alexander and Gerkmann, Timo},
+  booktitle={ISCA Interspeech},
+  pages={4873--4877},
+  year={2024}
 }
 ```

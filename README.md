@@ -126,15 +126,21 @@ Available BSRNN configs:
 | `./configs/bsrnn_lora_r16.toml` | LoRA fine-tuning (rank 16) |
 | `./configs/bsrnn_lora_r32.toml` | LoRA fine-tuning (rank 32) |
 | `./configs/bsrnn_lora_r128.toml` | LoRA fine-tuning (rank 128) |
-| `./configs/bsrnn_scratch.toml` | BSRNN training from scratch |
+| `./configs/bsrnn_scratch.toml` | BSRNN training from scratch (only usable with train_bsrnn_from_scratch.py) |
 
-### SGM — LoRA fine-tuning
+### SGM — fine-tuning (LoRA or full)
 
 ```bash
 python finetune_sgm.py --config ./configs/sgm_lora_r16.toml
 ```
 
-Key config options (`./configs/sgm_lora_r16.toml`):
+Available SGM configs:
+| Config | Description |
+|---|---|
+| `./configs/sgm_full.toml` | Full fine-tuning of all BSRNN weights |
+| `./configs/sgm_lora_r16.toml` | LoRA fine-tuning (rank 16) |
+
+### LoRA finetuning key parameters
 
 | Option | Description |
 |---|---|
@@ -142,12 +148,6 @@ Key config options (`./configs/sgm_lora_r16.toml`):
 | `lora_r` | LoRA rank (e.g. 8, 16, 32, 128) |
 | `lora_alpha` | LoRA scaling factor (typically `2 × lora_r`) |
 | `lora_target_modules` | Which layer types to apply LoRA to |
-
-### SGM — full / naive fine-tuning
-
-```bash
-python finetune_sgm.py --config ./configs/sgm_full.toml
-```
 
 ---
 

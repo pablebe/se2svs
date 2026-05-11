@@ -26,10 +26,12 @@ Models fine-tuned from a pretrained SE checkpoint outperform the same architectu
 
 ## Model checkpoints
 
+### Fine-tuned and from scratch checkpoints
 Fine-tuned model checkpoints (all except base models) are available on Hugging Face: **[pablebe/se2svs-model-checkpoints](https://hf.co/collections/pablebe/se2svs-model-checkpoints)**
 
 Run `python download_checkpoints.py` to download them automatically into `checkpoints/se2svs/`.
 
+### Base speech enhancement checkpoints
 Base model checkpoints are not included in that script and must be downloaded separately using the links in the table below.
 
 | File | Source | Description |
@@ -38,12 +40,12 @@ Base model checkpoints are not included in that script and must be downloaded se
 | `sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |
 
 ## Test sets
-To reproduce the evaluation on the 
-| Folder | Dataset | Source |
+To reproduce the evaluation on the three test-sets you can download the mixture audio and target vocals from:
+| Folder | Dataset | Source | Details
 |---|---|---|
-| `test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) |
-| `test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) |
-| `test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) |
+| `test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
+| `test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
+| `test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set
 
 ---
 

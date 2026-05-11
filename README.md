@@ -7,6 +7,10 @@
 
 🎧 **[Demo page with audio examples](https://pablebe.github.io/se2svs-webpage/)**
 
+📦 **[Test-set audio + result CSVs (Zenodo)](<dummy-url>)**
+
+📄 **[arXiv preprint](<arxiv-url>)**
+
 ---
 
 ## Overview
@@ -36,18 +40,18 @@ Base model checkpoints are not included in that script and must be downloaded se
 
 | File | Source | Description |
 |---|---|---|
-| `bsrnn_pretrained/bsrnn.ckpt` | [Hugging Face — bsrnn.ckpt](https://huggingface.co/lichenda/icassp_2026_urgent_baseline/blob/main/bsrnn.ckpt) | Base BSRNN model pretrained on speech enhancement |
-| `sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |
+| `./bsrnn_pretrained/bsrnn.ckpt` | [Hugging Face — bsrnn.ckpt](https://huggingface.co/lichenda/icassp_2026_urgent_baseline/blob/main/bsrnn.ckpt) | Base BSRNN model pretrained on speech enhancement |
+| `./sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |
 
 ## Test sets
 To reproduce the evaluation on the three test-sets you can download the mixture audio and target vocals from:
 | Folder | Dataset | Source | Details
 |---|---|---|
-| `test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
-| `test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
-| `test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set
+| `./test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
+| `./test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
+| `./test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set
 
-You
+The results plots and tables of our paper are located in `./aggregated_results` 
 
 ---
 
@@ -85,7 +89,7 @@ pip install uv
 Use the lock file for fully reproducible installation:
 
 ```bash
-uv pip install --override env_info/overrides.txt -r env_info/requirements.lock
+uv pip install --override ./env_info/overrides.txt -r ./env_info/requirements.lock
 ```
 
 The `overrides.txt` file resolves version conflicts between `espnet`/`gensvs` metadata and the actual packages used during development (`sentencepiece==0.2.1`, `setuptools==80.10.2`, `numpy==2.3.5`).
@@ -111,7 +115,7 @@ python finetune_sgm.py --config ./configs/sgm_scratch.toml
 ```
 
 ---
-## Fine-tuning
+## Fine-tuning of speech enhancement models for singing voice separation
 
 All fine-tuning scripts accept a TOML config file via `--config`. Example configs are provided in `./configs/`.
 All arguments defined in these TOML files are also parseable as CLI flags.
@@ -141,8 +145,9 @@ python finetune_sgm.py --config ./configs/sgm_lora_r16.toml
 Available SGM configs:
 | Config | Description |
 |---|---|
-| `./configs/sgm_full.toml` | Full fine-tuning of all BSRNN weights |
+| `./configs/sgm_full.toml` | Full fine-tuning of all SGM weights |
 | `./configs/sgm_lora_r16.toml` | LoRA fine-tuning (rank 16) |
+| `./configs/sgm_scratch.toml` | SGM training from scratch (can be used finetuning script finetune_sgm.py) |
 
 ### LoRA finetuning key parameters
 
@@ -161,18 +166,18 @@ Available SGM configs:
 
 ```bash
 python infer_bsrnn_finetuned_models.py \
-  --ckpt logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
-  --test-dir test_sets/gensvs_eval_audio/mixture \
-  --out-dir test_sets/gensvs_eval_audio/bsrnn_lora_r16
+  --ckpt ./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
+  --test-dir ./test_sets/gensvs_eval_audio/mixture \
+  --out-dir ./test_sets/gensvs_eval_audio/bsrnn_lora_r16
 ```
 
 ### SGM — inference (base, from-scratch, full finetuned, or LoRA)
 
 ```bash
 python inference_sgm.py \
-    --ckpt checkpoints/sgmse_pretrained/ears_wham.ckpt \
-    --test-dir test_sets/gensvs_eval_audio/mixture \
-    --out-dir test_sets/gensvs_eval_audio/sgm_base
+    --ckpt ./checkpoints/sgmse_pretrained/ears_wham.ckpt \
+    --test-dir ./test_sets/gensvs_eval_audio/mixture \
+    --out-dir ./test_sets/gensvs_eval_audio/sgm_base
 ```
 
 Default settings in `inference_sgm.py`: `--sampler pc`, `--corrector ald`, `--corrector-steps 2`, `--snr 0.5`, and `--N 45`.
@@ -181,9 +186,9 @@ Default settings in `inference_sgm.py`: `--sampler pc`, `--corrector ald`, `--co
 
 ```bash
 python inference_sgm.py \
-    --ckpt logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
-    --test-dir test_sets/gensvs_eval_audio/mixture \
-    --out-dir test_sets/gensvs_eval_audio/sgm_lora_r16
+    --ckpt ./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
+    --test-dir ./test_sets/gensvs_eval_audio/mixture \
+    --out-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16
 ```
 
 Pass `--no-lora` to disable LoRA adapters and evaluate the base model through the fine-tuned checkpoint.
@@ -192,26 +197,37 @@ Pass `--no-lora` to disable LoRA adapters and evaluate the base model through th
 
 ## Evaluation
 
-### Separation metrics (SDR, SI-SDR, MR-STFT loss, MERT-MSE)
+### Separation metrics (SDR, MR-STFT loss, MERT-MSE)
 
 ```bash
 python evaluate_separation.py \
-    --separated-dir test_sets/gensvs_eval_audio/sgm_lora_r16 \
-    --target-dir test_sets/gensvs_eval_audio/target \
-    --output-csv test_sets/gensvs_eval_audio/sgm_lora_r16/results.csv
+    --separated-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 \
+    --target-dir ./test_sets/gensvs_eval_audio/target \
+    --output-csv ./test_sets/gensvs_eval_audio/sgm_lora_r16/results.csv
 ```
 Compute summary statistics across evaluation iterations:
 
 ```bash
-python evaluate_separation.py --separated-dir test_sets/gensvs_eval_audio/sgm_lora_r16 --target-dir test_sets/gensvs_eval_audio/target
+python evaluate_separation.py --separated-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 --target-dir ./test_sets/gensvs_eval_audio/target
 ```
+
+For SGM outputs with multiple enhanced signal realizations stored in subdirectories, evaluate all runs with:
+
+```bash
+python evaluate_separation.py \
+  --multi-run-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 \
+  --target-dir test_sets/gensvs_eval_audio/target
+```
+
+This scans each subdirectory under `--multi-run-dir` and writes a `results.csv` file into each run folder.
+
 ### Speech enhancement metrics (SI-SDR, PESQ, STOI, DNSMOS, DistillMOS)
 
 ```bash
 python evaluate_speech.py \
-  --separated-dir test_sets/ears_wham/sgm_lora_r16 \
-  --target-dir test_sets/ears_wham/clean \
-  --output-csv test_sets/ears_wham/sgm_lora_r16/results.csv
+  --separated-dir ./test_sets/ears_wham/sgm_lora_r16 \
+  --target-dir ./test_sets/ears_wham/clean \
+  --output-csv ./test_sets/ears_wham/sgm_lora_r16/results.csv
 ```
 
 ### Aggregate and plot results
@@ -219,10 +235,12 @@ python evaluate_speech.py \
 Reproduce results tables and plots of the paper with:
 
 ```bash
-python aggregate_and_plot_results.py --base-dir .
+python aggregate_and_plot_results.py --base-dir ./
 ```
 
-Aggregated result summaries are stored in `aggregated_results/`.
+To reproduce the paper results, the test-set audio and CSV result files in `./test_sets/` can be downloaded from Zenodo: <dummy-url>.
+
+Aggregated result summaries are stored in `./aggregated_results/`.
 
 ---
 

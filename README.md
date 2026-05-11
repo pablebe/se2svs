@@ -91,6 +91,9 @@ This ensures all Python dependencies are installed at the exact versions used du
 
 ## Training from scratch
 
+All training commands below use `--config` and load parameters from TOML files in `configs/`.
+All arguments defined in these TOML files are also parseable as CLI flags.
+
 ### SGM (score-based diffusion model)
 
 ```bash
@@ -108,6 +111,7 @@ python train_bsrnn_from_scratch.py --config configs/bsrnn_scratch.toml
 ## Fine-tuning
 
 All fine-tuning scripts accept a TOML config file via `--config`. Example configs are provided in `configs/`.
+All arguments defined in these TOML files are also parseable as CLI flags.
 
 ### SGM — LoRA fine-tuning
 

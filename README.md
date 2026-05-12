@@ -6,7 +6,7 @@ This repository contains the code accompanying the paper "Teaching Speech Enhanc
 
 🤗 **[Model checkpoints (Hugging Face)](https://huggingface.co/collections/pablebe/se2svs-model-checkpoints)**
 
-📊 **[Test-set results: Audio + Result CSVs (Zenodo)](<dummy-url>)**
+📊 **[Test-set results: Audio + Result CSVs (Zenodo)](https://zenodo.org/records/20121787)**
 
 📄 **[arXiv preprint](<arxiv-url>)**
 
@@ -242,7 +242,7 @@ Reproduce results tables and plots of the paper with:
 python aggregate_and_plot_results.py --base-dir ./
 ```
 
-To reproduce the paper results, the test-set audio and CSV result files in `./test_sets/` can be downloaded from Zenodo: <dummy-url>.
+To reproduce the paper results, the test-set audio and CSV result files in `./test_sets/` can be downloaded from Zenodo: https://zenodo.org/records/20121787.
 
 Aggregated result summaries are stored in `./aggregated_results/`.
 

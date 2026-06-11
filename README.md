@@ -37,7 +37,7 @@ Run `python download_checkpoints.py` to download them automatically into `checkp
 ### Base speech enhancement checkpoints
 Base model checkpoints are not included in that script and must be downloaded separately using the links in the table below.
 
-| File | Source | Description |
+| File | Source | Description | 
 |---|---|---|
 | `./bsrnn_pretrained/bsrnn.ckpt` | [Hugging Face — bsrnn.ckpt](https://huggingface.co/lichenda/icassp_2026_urgent_baseline/blob/main/bsrnn.ckpt) | Base BSRNN model pretrained on speech enhancement |
 | `./sgmse_pretrained/ears_wham.ckpt` | [Google Drive](https://drive.google.com/drive/folders/1Tn6pVwjxUAy1DJ8167JCg3enuSi0hiw5) | Base SGM model pretrained on EARS-WHAM speech enhancement |

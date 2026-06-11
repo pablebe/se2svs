@@ -44,8 +44,8 @@ Base model checkpoints are not included in that script and must be downloaded se
 
 ## Test sets
 To reproduce the evaluation on the three test-sets you can download the mixture audio and target vocals from:
-| Folder | Dataset | Source | Details|
-|---|---|---|
+**| Folder | Dataset | Source | Details |**
+|---|---|---|---|
 | `./test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
 | `./test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
 | `./test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set

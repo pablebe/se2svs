@@ -420,6 +420,13 @@ def find_matching_files(target_dir, separated_dir):
             separated_dict[file_id] = f
             continue
 
+        # Pattern: separated_vocals_N_DT0 (MelRoFo / gensvs baseline naming)
+        match = re.search(r'separated_vocals_(\d+)', f.stem)
+        if match:
+            file_id = match.group(1)
+            separated_dict[file_id] = f
+            continue
+
         # Fallback: try to find any number before '_separated' or at the end
         match = re.search(r'_(\d+)(?:_separated)?$', f.stem)
         if match:

@@ -57,10 +57,19 @@ def find_all_result_csvs(base_dir, csv_name='results.csv', msrbench_csv_name='re
         dataset_name = dataset_dir.name
         dataset_csv_name = msrbench_csv_name if dataset_name == 'MSRBench_Vocals' else csv_name
         
-        # Get all model directories
-        model_dirs = [d for d in dataset_dir.iterdir() if d.is_dir()]
-        
-        for model_dir in sorted(model_dirs):
+        # Get all model directories.  The optional 'baselines/' subfolder is
+        # treated as a transparent grouping dir — its children are promoted to
+        # model dirs so they appear under the dataset, not under 'baselines'.
+        raw_model_dirs = [d for d in dataset_dir.iterdir() if d.is_dir()]
+        model_dirs = []
+        for d in raw_model_dirs:
+            if d.name == 'baselines':
+                model_dirs.extend(sorted(d.iterdir()))
+            else:
+                model_dirs.append(d)
+        model_dirs = sorted(model_dirs)
+
+        for model_dir in model_dirs:
             model_name = model_dir.name
 
             # Always record a direct model-level CSV when present.
@@ -107,6 +116,11 @@ MODEL_DISPLAY_NAMES = {
     'sgm_base':             'SGMSE \n(base)',
 }
 
+BASELINE_MODEL_DISPLAY_NAMES = {
+    'melroformer_small':  'MelRoFo (S)',
+    'melroformer_large':  'MelRoFo (L)',
+}
+
 BSRNN_MODEL_DISPLAY_NAMES = {
     'bsrnn_base': 'BSRNNSE \n(base)',
     'bsrnn_lora_r16': 'LoRA-BSRNNSVS\n(rank 16)',
@@ -139,7 +153,7 @@ METRIC_LABELS = {
     'multi_res_loss':  'MR-Loss',
     'mert_mse':        'MERT-MSE',
     'pesq':            'PESQ',
-    'stoi':            'STOI',
+    'stoi':            'ESTOI',
     'dnsmos_ovrl':     'DNSMOS',
     'distillmos':      'DistillMOS',
 }
@@ -160,13 +174,13 @@ LOWER_IS_BETTER = {'multi_res_loss', 'mert_mse'}
 
 # Preferred display order within a dataset
 METRIC_ORDER = ['sdr', 'si_sdr', 'multi_res_loss', 'mert_mse',
-                'pesq', 'stoi', 'dnsmos_ovrl', 'distillmos']
+                'pesq', 'stoi', 'distillmos']
 
 # Dataset display names for column headers
 DATASET_LABELS = {
-    'MSRBench_Vocals':      'MSRBench',
-    'gensvs_eval_audio':    'GenSVS',
-    'ears_wham':            'EARS-WHAM',
+    'MSRBench_Vocals':      'MSRBench (SVR: out-of-domain)',
+    'gensvs_eval_audio':    'GenSVS (SVS: adapted in-domain)',
+    'ears_wham':            'EARS-WHAM (SE: source domain)',
 }
 
 # Canonical model display order
@@ -194,9 +208,15 @@ BSRNN_LORA_NO_MODELS = {'bsrnn_lora_r16_no_lora'}
 SGM_LORA_MERGED_MODEL = 'sgm_lora_r16_adaptive'  # virtual key: dataset-aware w/ or no-LoRA selection
 BSRNN_LORA_MERGED_MODEL = 'bsrnn_lora_r16_adaptive'
 
+BASELINE_MODEL_ORDER = [
+    'MelRoFo (S)',
+    'MelRoFo (L)',
+]
+
 COMBINED_FAMILY_ROWSPAN = {
     'SGM': 6,
     'BSRNN': 9,
+    'Baselines': 3,
 }
 
 
@@ -353,10 +373,18 @@ def is_bsrnn_model(model_name):
     return model_name in BSRNN_MODEL_DISPLAY_NAMES or get_bsrnn_lora_rank(model_name) is not None
 
 
+def is_baseline_model(model_name):
+    return model_name in BASELINE_MODEL_DISPLAY_NAMES
+
+
+def get_baseline_display_name(model_name):
+    return BASELINE_MODEL_DISPLAY_NAMES.get(model_name, model_name)
+
+
 def metrics_for_dataset(dataset_name):
     """Return the metric list expected for a dataset."""
     if 'ears_wham' in dataset_name.lower():
-        return ['si_sdr', 'pesq', 'stoi', 'dnsmos_ovrl', 'distillmos']
+        return ['si_sdr', 'pesq', 'distillmos']
     # MSS datasets: prefer SDR and remove SI-SDR from aggregation outputs.
     return ['sdr', 'multi_res_loss', 'mert_mse']
 
@@ -775,7 +803,7 @@ def compact_combined_model_label(display_model, family):
         if rank_match:
             return f'LoRA {rank_match.group(1)}'
         return 'LoRA'
-    if 'full fine tuning' in lowered or 'full finetuning' in lowered:
+    if 'full fine-tuning' in lowered or 'full fine tuning' in lowered or 'full finetuning' in lowered:
         return 'full fine-tuning'
     if 'from scratch' in lowered:
         return 'from scratch'
@@ -786,6 +814,8 @@ def compact_combined_model_label(display_model, family):
         return name.replace('SGMSVS ', '', 1)
     if family == 'BSRNN' and (name.startswith('BSRNNSVS ') or name.startswith('BSRNNSE ')):
         return re.sub(r'^BSRNN(?:SVS|SE)\s+', '', name)
+    if family == 'Baselines':
+        return name
     return name
 
 
@@ -866,11 +896,15 @@ def create_latex_table_combined_families(
             return 'BSRNN'
         if is_diffusion_model(model_name) and iteration >= 0:
             return 'SGM'
+        if is_baseline_model(model_name):
+            return 'Baselines'
         return None
 
     def display_name_for_family(model_name, family):
         if family == 'BSRNN':
             return get_bsrnn_display_name(model_name)
+        if family == 'Baselines':
+            return get_baseline_display_name(model_name)
         return get_display_name(model_name)
 
     filtered = [
@@ -883,7 +917,7 @@ def create_latex_table_combined_families(
         return
 
     if dataset_order is None:
-        dataset_order = ['gensvs_eval_audio', 'MSRBench_Vocals', 'ears_wham']
+        dataset_order = ['ears_wham', 'gensvs_eval_audio', 'MSRBench_Vocals']
     available = set(dataset for dataset, _, _, _ in filtered)
     if include_all_datasets:
         datasets = list(dataset_order)
@@ -950,6 +984,7 @@ def create_latex_table_combined_families(
     family_sections = [
         ('SGM', MODEL_ORDER, 'SGM'),
         ('BSRNN', BSRNN_MODEL_ORDER, 'BSRNN'),
+        ('Baselines', BASELINE_MODEL_ORDER, 'Baselines'),
     ]
     noisy_model_name = 'Noisy'
 
@@ -998,11 +1033,13 @@ def create_latex_table_combined_families(
     lines.append(r'\begin{table*}[ht]')
     lines.append(r'  \centering')
     lines.append(
-        r'  \caption{Combined SGM and BSRNN results across GenSVS, MSRBench, and EARS-WHAM datasets. '
-        r'For the evaluation on MSRBench, predictions were loudness-normalized to match the target loudness before evaluation, '
-        r'since MR-Loss is sensitive to scaling mismatches and the MSRBench dataset contains targets that are not matched with the mixture. '
-        r'For the LoRA models evaluated on EARS-WHAM, the LoRA adapter was disabled to retrieve the full speech enhancement results of the base model.}'
+        r"  \caption{Mean and standard deviation for SE (EARS-WHAM), SVS (GenSVS), and SVR (MSRBench) results. "
+        r"The numbers next to ``LoRA'' indicate the rank $r$. "
+        r"Bold numbers indicate the best performance per metric--dataset combination within each model family. "
+        r"The Noisy row corresponds to unprocessed input mixtures. "
+        r"For context, both discriminative Mel-RoFormer models from~\cite{bereuter2025gensvs} are included: MelRoFo~(S) has a similar number of parameters to our SGM, while MelRoFo~(L) has more than three times as many parameters and was trained on a larger, undisclosed dataset.}"
     )
+    lines.append(r'  \label{tab:combined_results}')
     lines.append(r'  \resizebox{\textwidth}{!}{%')
     lines.append(r'  \setlength{\tabcolsep}{3pt}%')
     lines.append(r'  \begin{tabular}{ll' + 'r' * total_metric_cols + '}')
@@ -1026,6 +1063,8 @@ def create_latex_table_combined_families(
             header2.append(get_metric_label(metric))
     lines.append('    ' + ' & '.join(header2) + ' \\\\')
     lines.append(r'    \midrule')
+
+    has_noisy_data = any(noisy_stats.get(dataset) for dataset in datasets)
 
     best = {}
     for _, _, family_key in family_sections:
@@ -1054,10 +1093,17 @@ def create_latex_table_combined_families(
             model_tex = compact_combined_model_label(model, family_key)
             if model_idx == 0:
                 rowspan = max(len(section_models), COMBINED_FAMILY_ROWSPAN.get(family_key, len(section_models)))
-                family_cell = (
-                    f'\\multirow{{{rowspan}}}{{*}}'
-                    f'{{\\rotatebox[origin=c]{{90}}{{\\textbf{{{section_label}}}}}}}'
-                )
+                if family_key == 'Baselines':
+                    family_cell = (
+                        '\\multirow{' + str(rowspan) + '}{*}'
+                        '{\\rotatebox[origin=c]{90}'
+                        '{\\shortstack{\\textbf{Ref.} \\\\ \\cite{bereuter2025gensvs}}}}'
+                    )
+                else:
+                    family_cell = (
+                        f'\\multirow{{{rowspan}}}{{*}}'
+                        f'{{\\rotatebox[origin=c]{{90}}{{\\textbf{{{section_label}}}}}}}'
+                    )
             else:
                 family_cell = ''
 
@@ -1082,10 +1128,8 @@ def create_latex_table_combined_families(
         if section_idx < len(family_sections) - 1:
             lines.append(r'    \midrule')
 
-    # Add a single bottom noisy row with horizontal lines above and below.
-    has_noisy_data = any(noisy_stats.get(dataset) for dataset in datasets)
     if has_noisy_data:
-        lines.append(r'    \hline')
+        lines.append(r'    \midrule')
         noisy_cells = ['', f'  {noisy_model_name}']
         for dataset in datasets:
             for metric in dataset_metrics[dataset]:
@@ -1097,8 +1141,7 @@ def create_latex_table_combined_families(
                     )
                 else:
                     noisy_cells.append('--')
-        lines.append('    ' + ' & '.join(noisy_cells) + ' \\\\[5pt]')
-        lines.append(r'    \hline')
+        lines.append('    ' + ' & '.join(noisy_cells) + ' \\\\')
 
     lines.append(r'    \bottomrule')
     lines.append(r'  \end{tabular}')
@@ -1182,7 +1225,8 @@ def create_parameter_table(
     lines.append(r'    & Model & \shortstack[c]{Total\\Params\\{[M]}} & \shortstack[c]{Add.\\Params\\{[\%]}} & \shortstack[c]{Complexity\\{[GMACs/s]}} \\')
     lines.append(r'    \midrule')
 
-    for section_idx, (section_label, _, family_key) in enumerate(family_sections):
+    non_baseline_sections = [(sl, mo, fk) for sl, mo, fk in family_sections if fk != 'Baselines']
+    for section_idx, (section_label, _, family_key) in enumerate(non_baseline_sections):
         section_models = family_models[family_key]
         if not section_models:
             continue
@@ -1208,7 +1252,7 @@ def create_parameter_table(
             cells = [family_cell, f'{model_tex}', total_params_tex, added_params_tex, complexity_tex]
             lines.append('    ' + ' & '.join(cells) + ' \\\\')
 
-        if section_idx < len(family_sections) - 1:
+        if section_idx < len(non_baseline_sections) - 1:
             lines.append(r'    \midrule')
 
     lines.append(r'    \bottomrule')

@@ -224,6 +224,10 @@ def find_matching_files(target_dir, separated_dir):
         if match:
             separated_dict[match.group(1)] = f
             continue
+        match = re.search(r'separated_vocals_(\d+)', f.stem)
+        if match:
+            separated_dict[match.group(1)] = f
+            continue
         match = re.search(r'_(\d+)(?:_separated)?$', f.stem)
         if match:
             separated_dict[match.group(1)] = f
@@ -263,6 +267,11 @@ def find_matching_files_recursive(target_dir, separated_dir):
         if not tgt_subdir.is_dir():
             # Try flattening one level: separated has extra subdir that target lacks.
             tgt_subdir = target_path / rel_subdir.name
+        if not tgt_subdir.is_dir():
+            # Try stripping 'separated_vocals_' prefix from subdir name
+            # (gensvs MelRoFoBigVGAN prefixes speaker dirs this way)
+            stripped = rel_subdir.name.removeprefix('separated_vocals_')
+            tgt_subdir = target_path / stripped
         if not tgt_subdir.is_dir():
             continue
         subdir_matches = find_matching_files(str(tgt_subdir), str(sep_subdir))

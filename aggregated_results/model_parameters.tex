@@ -8,12 +8,12 @@
     \toprule
     & Model & \shortstack[c]{Total\\Params\\{[M]}} & \shortstack[c]{Add.\\Params\\{[\%]}} & \shortstack[c]{Complexity\\{[GMACs/s]}} \\
     \midrule
-    \multirow{4}{*}{\rotatebox[origin=c]{90}{\textbf{SGM}}} & (full fine-tuning) & 64.74 & 0.00 & -- \\
+    \multirow{4}{*}{\rotatebox[origin=c]{90}{\textbf{SGM}}} & full fine-tuning & 64.74 & 0.00 & 399.64 \\
      & LoRA 16 & 69.76 & 7.75 & 895.07 \\
      & from scratch & 64.74 & 0.00 & 399.64 \\
      & base & 64.74 & 0.00 & 399.64 \\
     \midrule
-    \multirow{6}{*}{\rotatebox[origin=c]{90}{\textbf{BSRNN}}} & (full fine-tuning) & 37.80 & 0.00 & -- \\
+    \multirow{6}{*}{\rotatebox[origin=c]{90}{\textbf{BSRNN}}} & full fine-tuning & 37.80 & 0.00 & 84.31 \\
      & LoRA 128 & 56.13 & 48.49 & 91.18 \\
      & LoRA 32 & 42.38 & 12.12 & 86.03 \\
      & LoRA 16 & 40.09 & 6.06 & 85.17 \\

@@ -243,7 +243,7 @@ Reproduce results tables and plots of the paper with:
 python aggregate_and_plot_results.py --base-dir ./
 ```
 
-To reproduce the paper results, the test-set audio and CSV result files in `./se2svs_results_and_audio/` can be downloaded from Zenodo: https://zenodo.org/records/20121787.
+To reproduce the paper results, the test-set audio and CSV result files in `./se2svs_results_and_audio/` can be downloaded from Zenodo: https://doi.org/10.5281/zenodo.21131951.
 
 Aggregated result summaries are stored in `./aggregated_results/`.
 

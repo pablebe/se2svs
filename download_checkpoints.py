@@ -25,8 +25,8 @@ CHECKPOINTS = [
     ("pablebe/se2svs_sgm_scratch",    "epoch=522-sdr=7.26.ckpt",  "checkpoints/se2svs/sgm_scratch"),
     ("pablebe/se2svs_bsrnn_full",     "epoch=378-sdr=10.03.ckpt", "checkpoints/se2svs/bsrnn_full"),
     ("pablebe/se2svs_bsrnn_lora_r16", "epoch=503-sdr=8.94.ckpt",  "checkpoints/se2svs/bsrnn_lora_r16"),
-    ("pablebe/se2svs_bsrnn_lora32",   "epoch=544-sdr=9.05.ckpt",  "checkpoints/se2svs/bsrnn_lora_r32"),
-    ("pablebe/se2svs_bsrnn_lora_r128","epoch=543-sdr=9.15.ckpt",  "checkpoints/se2svs/bsrnn_lora_r128"),
+    ("pablebe/se2svs_bsrnn_lora_r32",  "epoch=544-sdr=9.05.ckpt",  "checkpoints/se2svs/bsrnn_lora_r32"),
+    ("pablebe/se2svs_bsrnn_lora_r128","epoch=489-sdr=9.43.ckpt",  "checkpoints/se2svs/bsrnn_lora_r128"),
     ("pablebe/se2svs_bsrnn_scratch",  "epoch=480-sdr=8.25.ckpt",  "checkpoints/se2svs/bsrnn_scratch"),
 ]
 

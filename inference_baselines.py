@@ -17,15 +17,15 @@ Example
 -------
 # Run both gensvs baselines + large model, 10 SGMSVS iterations:
 python inference_baselines.py \\
-    --mix-dir test_sets/gensvs_eval_audio/mixture \\
-    --out-dir test_sets/gensvs_eval_audio/baselines \\
+    --mix-dir se2svs_results_and_audio/gensvs_eval_audio/mixture \\
+    --out-dir se2svs_results_and_audio/gensvs_eval_audio/baselines \\
     --model all --n-iterations 10 \\
     --melrofo-large-ckpt trained_models/melroformer_large/MelBandRoformer.ckpt
 
 # Run only MelRoFo(L):
 python inference_baselines.py \\
-    --mix-dir test_sets/MSRBench_Vocals/mixture \\
-    --out-dir test_sets/MSRBench_Vocals/baselines \\
+    --mix-dir se2svs_results_and_audio/MSRBench_Vocals/mixture \\
+    --out-dir se2svs_results_and_audio/MSRBench_Vocals/baselines \\
     --model melrofo_large \\
     --melrofo-large-ckpt trained_models/melroformer_large/MelBandRoformer.ckpt
 """
@@ -40,8 +40,8 @@ import soundfile as sf
 import torch
 import torchaudio.functional as taF
 
-DEFAULT_MIX_DIR = 'test_sets/gensvs_eval_audio/mixture'
-DEFAULT_OUT_DIR = 'test_sets/gensvs_eval_audio/baselines'
+DEFAULT_MIX_DIR = 'se2svs_results_and_audio/gensvs_eval_audio/mixture'
+DEFAULT_OUT_DIR = 'se2svs_results_and_audio/gensvs_eval_audio/baselines'
 DEFAULT_LOUDNESS_LEVEL = -18.0
 DEFAULT_SEED = 42
 DEFAULT_MELROFO_LARGE_CKPT = 'trained_models/melroformer_large/MelBandRoformer.ckpt'

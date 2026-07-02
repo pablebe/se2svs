@@ -666,7 +666,7 @@ def main():
         description='Evaluate separated audio files against targets using MSS_model validation metrics'
     )
     parser.add_argument('--target-dir', type=str, required=True,
-                       help='Directory containing target audio files (e.g., test_sets/gensvs_eval_audio/target)')
+                       help='Directory containing target audio files (e.g., se2svs_results_and_audio/gensvs_eval_audio/target)')
     parser.add_argument('--separated-dir', type=str, default=None,
                        help='Directory containing separated audio files')
     parser.add_argument('--multi-run-dir', type=str, default=None,

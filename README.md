@@ -47,9 +47,9 @@ To reproduce the evaluation on the three test-sets you can download the mixture 
 
 | Folder | Dataset | Source | Details |
 |---|---|---|---|
-| `./test_sets/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
-| `./test_sets/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
-| `./test_sets/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set
+| `./se2svs_results_and_audio/ears_wham/` | EARS-WHAM (speech enhancement) | [EARS Benchmark](https://github.com/sp-uhh/ears_benchmark) | only first 5s were used
+| `./se2svs_results_and_audio/gensvs_eval_audio/` | GenSVS (singing voice separation) | [Zenodo](https://zenodo.org/records/15911723) | 5s subset of MUSDB18-HQ test set 
+| `./se2svs_results_and_audio/MSRBench_Vocals/` | MSRBench (singing voice restoration) | [Hugging Face](https://huggingface.co/datasets/yongyizang/MSRBench) | 10s audio samples from MSR challenge test set
 
 The results plots and tables of our paper are located in `./aggregated_results` 
 
@@ -167,8 +167,8 @@ Available SGM configs:
 ```bash
 python inference_bsrnn.py \
   --ckpt ./logs/<run_id>/epoch=XXX-sdr=X.XX.ckpt \
-  --test-dir ./test_sets/gensvs_eval_audio/mixture \
-  --out-dir ./test_sets/gensvs_eval_audio/bsrnn_lora_r16
+  --test-dir ./se2svs_results_and_audio/gensvs_eval_audio/mixture \
+  --out-dir ./se2svs_results_and_audio/gensvs_eval_audio/bsrnn_lora_r16
 ```
 
 ### SGM — checkpoint inference (base, from-scratch, full finetuned, or LoRA)
@@ -176,7 +176,7 @@ python inference_bsrnn.py \
 ```bash
 python inference_sgm.py \
   --ckpt <checkpoint_path> \
-  --test-dir ./test_sets/gensvs_eval_audio/mixture \
+  --test-dir ./se2svs_results_and_audio/gensvs_eval_audio/mixture \
   --out-dir <output_dir>
 ```
 
@@ -199,17 +199,17 @@ For BSRNN models with a single output directory:
 
 ```bash
 python evaluate_separation.py \
-    --separated-dir ./test_sets/gensvs_eval_audio/bsrnn_lora_r16 \
-    --target-dir ./test_sets/gensvs_eval_audio/target \
-    --output-csv ./test_sets/gensvs_eval_audio/bsrnn_lora_r16/results.csv
+    --separated-dir ./se2svs_results_and_audio/gensvs_eval_audio/bsrnn_lora_r16 \
+    --target-dir ./se2svs_results_and_audio/gensvs_eval_audio/target \
+    --output-csv ./se2svs_results_and_audio/gensvs_eval_audio/bsrnn_lora_r16/results.csv
 ```
 
 For SGM models with multiple enhanced signal realizations stored in `iter_NNN_seedXX/` subdirectories, use `--multi-run-dir` to evaluate all iterations at once:
 
 ```bash
 python evaluate_separation.py \
-  --multi-run-dir ./test_sets/gensvs_eval_audio/sgm_lora_r16 \
-  --target-dir ./test_sets/gensvs_eval_audio/target
+  --multi-run-dir ./se2svs_results_and_audio/gensvs_eval_audio/sgm_lora_r16 \
+  --target-dir ./se2svs_results_and_audio/gensvs_eval_audio/target
 ```
 
 This scans each subdirectory under `--multi-run-dir` and writes a `results.csv` into each run folder.
@@ -220,17 +220,17 @@ For BSRNN models with a single output directory:
 
 ```bash
 python evaluate_speech.py \
-  --separated-dir ./test_sets/ears_wham/bsrnn_lora_r16 \
-  --target-dir ./test_sets/ears_wham/clean \
-  --output-csv ./test_sets/ears_wham/bsrnn_lora_r16/speech_metrics_results.csv
+  --separated-dir ./se2svs_results_and_audio/ears_wham/bsrnn_lora_r16 \
+  --target-dir ./se2svs_results_and_audio/ears_wham/clean \
+  --output-csv ./se2svs_results_and_audio/ears_wham/bsrnn_lora_r16/speech_metrics_results.csv
 ```
 
 For SGM models with multiple enhanced signal realizations stored in `iter_NNN_seedXX/` subdirectories, use `--multi-run-dir` to evaluate all iterations at once:
 
 ```bash
 python evaluate_speech.py \
-  --multi-run-dir ./test_sets/ears_wham/sgm_lora_r16 \
-  --target-dir ./test_sets/ears_wham/clean
+  --multi-run-dir ./se2svs_results_and_audio/ears_wham/sgm_lora_r16 \
+  --target-dir ./se2svs_results_and_audio/ears_wham/clean
 ```
 
 This scans each subdirectory under `--multi-run-dir` and writes a `speech_metrics_results.csv` into each run folder.
@@ -243,7 +243,7 @@ Reproduce results tables and plots of the paper with:
 python aggregate_and_plot_results.py --base-dir ./
 ```
 
-To reproduce the paper results, the test-set audio and CSV result files in `./test_sets/` can be downloaded from Zenodo: https://zenodo.org/records/20121787.
+To reproduce the paper results, the test-set audio and CSV result files in `./se2svs_results_and_audio/` can be downloaded from Zenodo: https://zenodo.org/records/20121787.
 
 Aggregated result summaries are stored in `./aggregated_results/`.
 
@@ -259,7 +259,7 @@ checkpoints/        Model checkpoints [download required; for instructions see s
   bsrnn_pretrained/ Pretrained BSRNN checkpoint 
   sgmse_pretrained/ Pretrained SE checkpoint 
   se2svs/           Fine-tuned and from-scratch model checkpoints 
-test_sets/          Evaluation datasets and per-model output folders [download required; for instructions see section "Test sets"]
+se2svs_results_and_audio/          Evaluation datasets and per-model output folders [download required; for instructions see section "Test sets"]
 aggregated_results/ Aggregated metric CSVs and plots
 env_info/           Conda environment and pip requirements files
 ```

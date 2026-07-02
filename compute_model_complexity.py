@@ -46,7 +46,7 @@ MODEL_SPECS: List[ModelSpec] = [
     ModelSpec("SGMSVS (from scratch)", "SGM", "checkpoints/se2svs/sgm_scratch/epoch=522-sdr=7.26.ckpt"),
     ModelSpec("SGMSE  (base)", "SGM", "checkpoints/sgmse_pretrained/ears_wham.ckpt"),
     ModelSpec("BSRNNSVS (full finetuning)", "BSRNN", "checkpoints/se2svs/bsrnn_full/epoch=378-sdr=10.03.ckpt"),
-    ModelSpec("LoRA-BSRNNSVS (rank 128)", "BSRNN", "checkpoints/se2svs/bsrnn_lora_r128/epoch=543-sdr=9.15.ckpt"),
+    ModelSpec("LoRA-BSRNNSVS (rank 128)", "BSRNN", "checkpoints/se2svs/bsrnn_lora_r128/epoch=489-sdr=9.43.ckpt"),
     ModelSpec("LoRA-BSRNNSVS (rank 32)", "BSRNN", "checkpoints/se2svs/bsrnn_lora_r32/epoch=544-sdr=9.05.ckpt"),
     ModelSpec("LoRA-BSRNNSVS (rank 16)", "BSRNN", "checkpoints/se2svs/bsrnn_lora_r16/epoch=503-sdr=8.94.ckpt"),
     ModelSpec("BSRNNSVS (from scratch)", "BSRNN", "checkpoints/se2svs/bsrnn_scratch/epoch=480-sdr=8.25.ckpt"),

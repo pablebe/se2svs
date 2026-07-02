@@ -11,7 +11,7 @@ random_mix = true
 add_augmentation = true
 full_mix_percentage = 0.5
 use_musdb_test_as_valid = false
-custom_valid_dir = "./test_sets/gensvs_eval_audio"
+custom_valid_dir = "./se2svs_results_and_audio/gensvs_eval_audio"
 
 # Training runtime configuration
 start_with_validation = false
@@ -45,7 +45,7 @@ pretrained_ckpt = "./checkpoints/bsrnn_pretrained/bsrnn.ckpt"
 
 # LoRA configuration
 lora_r = 128
-lora_alpha = 128
+lora_alpha = 256
 lora_dropout = 0.005
 lora_bias = "none"
 # Leave null to auto-discover BSRNN target module names in code
@@ -55,8 +55,8 @@ lora_modules_to_save = []
 print_lora_candidates_only = false
 
 # Logging
-wandb_name = "bsrnn_lora_finetune_r128"
-run_id = "260401_1630_BSRNN_lora_finetune_r128"
+wandb_name = "bsrnn_lora_finetune_r128_a256"
+run_id = "260701_BSRNN_lora_finetune_r128_a256"
 audio_log_interval = 6
 audio_log_files = [1, 3, 4, 11, 19, 26, 29]
 save_ckpt_interval = 50000

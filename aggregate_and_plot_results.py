@@ -30,7 +30,7 @@ def find_all_result_csvs(base_dir, csv_name='results.csv', msrbench_csv_name='re
     Recursively find all result CSV files in the directory structure.
     
     Assumes structure like:
-    test_sets/
+    se2svs_results_and_audio/
         MSRBench_Vocals/
             sgm_scratch/
                 iter_000_seed42/results.csv
@@ -45,13 +45,13 @@ def find_all_result_csvs(base_dir, csv_name='results.csv', msrbench_csv_name='re
     """
     results = []
     
-    test_sets_dir = Path(base_dir) / 'test_sets'
+    se2svs_results_and_audio_dir = Path(base_dir) / 'se2svs_results_and_audio'
     
-    if not test_sets_dir.exists():
-        raise FileNotFoundError(f"test_sets directory not found at {test_sets_dir}")
+    if not se2svs_results_and_audio_dir.exists():
+        raise FileNotFoundError(f"se2svs_results_and_audio directory not found at {se2svs_results_and_audio_dir}")
     
     # Get all datasets
-    datasets = [d for d in test_sets_dir.iterdir() if d.is_dir()]
+    datasets = [d for d in se2svs_results_and_audio_dir.iterdir() if d.is_dir()]
     
     for dataset_dir in sorted(datasets):
         dataset_name = dataset_dir.name
@@ -214,9 +214,15 @@ BASELINE_MODEL_ORDER = [
 ]
 
 COMBINED_FAMILY_ROWSPAN = {
-    'SGM': 6,
-    'BSRNN': 9,
-    'Baselines': 3,
+    'SGM': 5,
+    'BSRNN': 7,
+    'Baselines': 2,
+}
+
+COMBINED_FAMILY_FIXUP = {
+    'SGM': '0pt',
+    'BSRNN': '3pt',
+    'Baselines': '2.5pt',
 }
 
 
@@ -235,7 +241,7 @@ MODEL_CHECKPOINT_PATHS = {
     'bsrnn_lora_r16_adaptive': 'checkpoints/se2svs/bsrnn_lora_r16/epoch=503-sdr=8.94.ckpt',
     'bsrnn_lora_r32': 'checkpoints/se2svs/bsrnn_lora_r32/epoch=544-sdr=9.05.ckpt',
     'bsrnn_lora_r32_adaptive': 'checkpoints/se2svs/bsrnn_lora_r32/epoch=544-sdr=9.05.ckpt',
-    'bsrnn_lora_r128': 'checkpoints/se2svs/bsrnn_lora_r128/epoch=543-sdr=9.15.ckpt',
+    'bsrnn_lora_r128': 'checkpoints/se2svs/bsrnn_lora_r128/epoch=489-sdr=9.43.ckpt',
     'bsrnn_lora_r128_adaptive': 'checkpoints/se2svs/bsrnn_lora_r128/epoch=543-sdr=9.15.ckpt',
     'bsrnn_scratch': 'checkpoints/se2svs/bsrnn_scratch/epoch=480-sdr=8.25.ckpt',
     'bsrnn_base': 'checkpoints/bsrnn_pretrained/bsrnn.ckpt',
@@ -257,7 +263,7 @@ PRECOMPUTED_PARAM_COUNTS = {
     'bsrnn_lora_r16':       40.09e6,
     'bsrnn_lora_r16_no_lora': 40.09e6,
     'bsrnn_lora_r32':       42.38e6,
-    'bsrnn_lora_r128':      56.13e6,
+    'bsrnn_lora_r128': 56.13e6,
 }
 
 PRECOMPUTED_GMACS_PER_SECOND = {
@@ -996,9 +1002,9 @@ def create_latex_table_combined_families(
     noisy_stats = {}
 
     # Add dataset-level noisy baseline metrics, if available.
-    # Expected location: <base_dir>/test_sets/<dataset>/noisy_metrics.csv
+    # Expected location: <base_dir>/se2svs_results_and_audio/<dataset>/noisy_metrics.csv
     for dataset in datasets:
-        noisy_csv_path = Path(base_dir) / 'test_sets' / dataset / 'noisy_metrics.csv'
+        noisy_csv_path = Path(base_dir) / 'se2svs_results_and_audio' / dataset / 'noisy_metrics.csv'
         if not noisy_csv_path.exists():
             continue
 
@@ -1036,8 +1042,8 @@ def create_latex_table_combined_families(
         r"  \caption{Mean and standard deviation for SE (EARS-WHAM), SVS (GenSVS), and SVR (MSRBench) results. "
         r"The numbers next to ``LoRA'' indicate the rank $r$. "
         r"Bold numbers indicate the best performance per metric--dataset combination within each model family. "
-        r"The Noisy row corresponds to unprocessed input mixtures. "
-        r"For context, both discriminative Mel-RoFormer models from~\cite{bereuter2025gensvs} are included: MelRoFo~(S) has a similar number of parameters to our SGM, while MelRoFo~(L) has more than three times as many parameters and was trained on a larger, undisclosed dataset.}"
+        r"For context, two differently sized discriminative Mel-RoFormer models from~\cite{jensen2024melbandroformer, bereuter2025gensvs} are included. "
+        r"The Noisy row corresponds to unprocessed input mixtures.}"
     )
     lines.append(r'  \label{tab:combined_results}')
     lines.append(r'  \resizebox{\textwidth}{!}{%')
@@ -1094,14 +1100,16 @@ def create_latex_table_combined_families(
             if model_idx == 0:
                 rowspan = max(len(section_models), COMBINED_FAMILY_ROWSPAN.get(family_key, len(section_models)))
                 if family_key == 'Baselines':
+                    fixup = COMBINED_FAMILY_FIXUP.get(family_key, '0pt')
                     family_cell = (
-                        '\\multirow{' + str(rowspan) + '}{*}'
+                        '\\multirow{' + str(rowspan) + '}{*}[' + fixup + ']'
                         '{\\rotatebox[origin=c]{90}'
-                        '{\\shortstack{\\textbf{Ref.} \\\\ \\cite{bereuter2025gensvs}}}}'
+                        '{\\shortstack{\\textbf{Ref.} \\\\ \\cite{jensen2024melbandroformer, bereuter2025gensvs}}}}'
                     )
                 else:
+                    fixup = COMBINED_FAMILY_FIXUP.get(family_key, '0pt')
                     family_cell = (
-                        f'\\multirow{{{rowspan}}}{{*}}'
+                        f'\\multirow{{{rowspan}}}{{*}}[{fixup}]'
                         f'{{\\rotatebox[origin=c]{{90}}{{\\textbf{{{section_label}}}}}}}'
                     )
             else:
@@ -1123,7 +1131,7 @@ def create_latex_table_combined_families(
                         cells.append(formatted)
                     else:
                         cells.append('--')
-            lines.append('    ' + ' & '.join(cells) + ' \\\\[5pt]')
+            lines.append('    ' + ' & '.join(cells) + ' \\\\[2pt]')
 
         if section_idx < len(family_sections) - 1:
             lines.append(r'    \midrule')
@@ -1282,7 +1290,7 @@ _PESQ_MERT_LABEL_OFFSETS_GENSVS = {
     ('BSRNN', 'scratch'):      (15,  6, 'center', 'bottom' ),
     ('SGM',   'LoRA\n16'):     ( 9,  4, 'right',  'bottom' ),
     ('BSRNN', 'LoRA\n16'):     ( 5,  4, 'right',  'bottom' ),
-    ('BSRNN', 'LoRA\n32/128'):( 6, -6, 'right',  'top'    ),
+    ('BSRNN', 'LoRA\n32/128'):( 6, -9, 'right',  'top'    ),
     ('BSRNN', 'LoRA\n128'):   (-3,  1, 'right',  'bottom' ),
     ('BSRNN', 'LoRA\n32'):    ( 6, -4, 'right',  'top'    ),
 }
@@ -1296,9 +1304,9 @@ _PESQ_MERT_LABEL_OFFSETS_MSRBENCH = {
     ('BSRNN', 'scratch'):      (15,  6, 'center', 'bottom' ),
     ('SGM',   'LoRA\n16'):     ( 9,  4, 'right',  'bottom' ),
     ('BSRNN', 'LoRA\n16'):     ( 5,  4, 'right',  'bottom' ),
-    ('BSRNN', 'LoRA\n32/128'):( 6, -6, 'right',  'top'    ),
-    ('BSRNN', 'LoRA\n128'):   (-3,  1, 'right',  'bottom' ),
-    ('BSRNN', 'LoRA\n32'):    ( 6, -4, 'right',  'top'    ),
+#    ('BSRNN', 'LoRA\n32/128'):( 6, -6, 'right',  'top'    ),
+    ('BSRNN', 'LoRA\n128'):   ( 6, -6, 'right',  'top'    ),
+    ('BSRNN', 'LoRA\n32'):    ( -6, 0, 'right',  'center'    ),
 }
 
 
@@ -1451,15 +1459,14 @@ def create_pesq_vs_mert_tradeoff_plot(df, output_dir=None):
         for _, row in plot_df.iterrows():
             family = row['family']
             label  = _get_abbreviated_label(row['model'])
-            # Collapse LoRA-BSRNN rank 32 and 128 into one label to avoid overlap
-            if family == 'BSRNN' and label in {'LoRA\n32', 'LoRA\n128'}:
+            if not is_msrbench and family == 'BSRNN' and label in {'LoRA\n32', 'LoRA\n128'}:
                 if combined_lora_drawn:
                     continue
                 label = 'LoRA\n32/128'
                 combined_lora_drawn = True
             dx, dy, ha, va = offsets.get((family, label), _PESQ_MERT_LABEL_OFFSET_DEFAULT)
             emphasize = (
-                (family == 'BSRNN' and label in {'full', 'LoRA\n32/128'}) or
+                (family == 'BSRNN' and label in {'full', 'LoRA\n32/128', 'LoRA\n128'}) or
                 (is_msrbench and family == 'SGM' and label == 'LoRA\n16')
             )
             ax.annotate(
@@ -1539,7 +1546,7 @@ def main():
     parser.add_argument('--msrbench-csv-name', type=str, default='results_loudness_normalize.csv',
                        help='CSV name used for MSRBench_Vocals to avoid loudness-scaling bias')
     parser.add_argument('--base-dir', type=str, default='.',
-                       help='Base directory containing test_sets (default: current directory)')
+                       help='Base directory containing se2svs_results_and_audio (default: current directory)')
     parser.add_argument('--output-dir', type=str, default='./aggregated_results',
                        help='Directory to save output plots and tables (default: ./aggregated_results)')
     args = parser.parse_args()

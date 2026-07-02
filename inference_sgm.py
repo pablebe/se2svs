@@ -11,20 +11,20 @@ Example
 # Singing voice separation with LoRA:
 python infer_finetuned_models.py \
     --ckpt logs/270219_1630_SGMSE_lora_finetune_r16/epoch=533-sdr=7.63.ckpt \
-    --test-dir test_sets/gensvs_eval_audio/mixture \
-    --out-dir test_sets/gensvs_eval_audio/output
+    --test-dir se2svs_results_and_audio/gensvs_eval_audio/mixture \
+    --out-dir se2svs_results_and_audio/gensvs_eval_audio/output
 
 # Speech enhancement with naive fine-tuning:
 python infer_finetuned_models.py \
     --ckpt checkpoints/se2svs/sgm_full/epoch=900-sdr=8.35.ckpt \
-    --test-dir test_sets/ears_wham_v2_test/noisy \
-    --out-dir test_sets/ears_wham_v2_test/enhanced
+    --test-dir se2svs_results_and_audio/ears_wham_v2_test/noisy \
+    --out-dir se2svs_results_and_audio/ears_wham_v2_test/enhanced
 
 # Without LoRA adapter (base model only):
 python infer_finetuned_models.py \
     --ckpt logs/270219_1630_SGMSE_lora_finetune_r16/epoch=533-sdr=7.63.ckpt \
-    --test-dir test_sets/gensvs_eval_audio/mixture \
-    --out-dir test_sets/gensvs_eval_audio/output \
+    --test-dir se2svs_results_and_audio/gensvs_eval_audio/mixture \
+    --out-dir se2svs_results_and_audio/gensvs_eval_audio/output \
     --no-lora
 """
 
@@ -63,7 +63,7 @@ from models.sgmse.util.other import pad_spec
 
 # ── Defaults ───────────────────────────────────────────────────────────────── 
 DEFAULT_CKPT     = "checkpoints/se2svs/sgm_full/epoch=900-sdr=8.35.ckpt"
-DEFAULT_TEST_DIR = "test_sets/MSRBench_Vocals/mixture"
+DEFAULT_TEST_DIR = "se2svs_results_and_audio/MSRBench_Vocals/mixture"
 DEFAULT_SEED     = 42
 
 # ── Args ───────────────────────────────────────────────────────────────────── 

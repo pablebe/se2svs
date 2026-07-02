@@ -6,7 +6,7 @@ This repository contains the code accompanying the paper "Teaching Speech Enhanc
 
 🤗 **[Model checkpoints (Hugging Face)](https://huggingface.co/collections/pablebe/se2svs-model-checkpoints)**
 
-📊 **[Test-set results: Audio + Result CSVs (Zenodo)](https://zenodo.org/records/20121787)**
+📊 **[Test-set results: Audio + Result CSVs (Zenodo)](https://doi.org/10.5281/zenodo.21131951)**
 
 📄 **[arXiv preprint](<arxiv-url>)**
 

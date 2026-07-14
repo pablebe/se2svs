@@ -8,7 +8,7 @@ This repository contains the code accompanying the paper "Teaching Speech Enhanc
 
 📊 **[Test-set results: Audio + Result CSVs (Zenodo)](https://doi.org/10.5281/zenodo.21131951)**
 
-📄 **[arXiv preprint](https://arxiv.org/html/2607.11630v1)**
+📄 **[arXiv preprint](https://arxiv.org/abs/2607.11630)**
 
 ---
 

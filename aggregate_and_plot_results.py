@@ -1467,7 +1467,7 @@ def create_pesq_vs_mert_tradeoff_plot(df, output_dir=None):
             dx, dy, ha, va = offsets.get((family, label), _PESQ_MERT_LABEL_OFFSET_DEFAULT)
             emphasize = (
                 (family == 'BSRNN' and label in {'full', 'LoRA\n32/128', 'LoRA\n128'}) or
-                (is_msrbench and family == 'SGM' and label == 'LoRA\n16')
+                (family == 'SGM' and label == 'LoRA\n16')
             )
             ax.annotate(
                 label,
@@ -1481,55 +1481,65 @@ def create_pesq_vs_mert_tradeoff_plot(df, output_dir=None):
                 va=va,
             )
 
-    fig, axes = plt.subplots(2, 1, figsize=(4.8, 7.2), sharex=True)
-
-    for family, fdf in plot_df.groupby('family', sort=False):
-        color  = family_colors.get(family, 'tab:gray')
-        marker = 'D' if family == 'SGM' else 'o'
-        for ax, y_col in zip(axes, ['mert_mse_gensvs', 'mert_mse_msrbench']):
+    def _draw_panel(ax, y_col, title, is_msrbench, show_xlabel, show_ylabel=True):
+        offsets = _PESQ_MERT_LABEL_OFFSETS_MSRBENCH if is_msrbench else _PESQ_MERT_LABEL_OFFSETS_GENSVS
+        for family, fdf in plot_df.groupby('family', sort=False):
+            color  = family_colors.get(family, 'tab:gray')
+            marker = 'D' if family == 'SGM' else 'o'
             ax.scatter(fdf['pesq'], fdf[y_col], s=60, color=color,
                        label=family, marker=marker)
-
-    _annotate(axes[0], 'pesq', 'mert_mse_gensvs',   _PESQ_MERT_LABEL_OFFSETS_GENSVS,   is_msrbench=False)
-    _annotate(axes[1], 'pesq', 'mert_mse_msrbench', _PESQ_MERT_LABEL_OFFSETS_MSRBENCH, is_msrbench=True)
-
-    for ax, title in zip(axes, ['GenSVS/EARS-WHAM', 'MSRBench/EARS-WHAM']):
-        ax.set_title(title, fontsize=16)
-        ax.set_ylabel(r'MERT-MSE $\leftarrow$', fontsize=14)
+        _annotate(ax, 'pesq', y_col, offsets, is_msrbench=is_msrbench)
+        ax.set_title(title, fontsize=16, fontweight='bold')
+        if show_ylabel:
+            ax.set_ylabel(r'MERT-MSE $\leftarrow$', fontsize=14)
         ax.grid(alpha=0.3)
         ax.tick_params(axis='both', labelsize=14)
+        ax.yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+        if not is_msrbench:
+            ax.yaxis.set_major_locator(MultipleLocator(0.01))
+        xmin, xmax = ax.get_xlim()
+        ax.set_xlim(left=xmin - 0.03, right=xmax)
+        if not is_msrbench:
+            ymin, ymax = ax.get_ylim()
+            ax.set_ylim(bottom=ymin - 0.005, top=ymax)
+        if show_xlabel:
+            ax.set_xlabel(r'PESQ $\rightarrow$', fontsize=14)
 
-    # Fine-tune y-axis formatting to match the original
-    axes[0].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
-    axes[0].yaxis.set_major_locator(MultipleLocator(0.01))
-    axes[1].yaxis.set_major_formatter(FormatStrFormatter('%.3f'))
+    def _add_legend(ax):
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(
+            handles, labels,
+            loc='center right',
+            bbox_to_anchor=(0.98, 0.60),
+            ncol=1,
+            frameon=True, facecolor='white', edgecolor='black', framealpha=1.0,
+            fontsize=14, borderaxespad=0.0, handletextpad=0.3,
+        )
 
-    xmin, xmax = axes[0].get_xlim()
-    axes[0].set_xlim(left=xmin - 0.03, right=xmax)
-    ymin, ymax = axes[0].get_ylim()
-    axes[0].set_ylim(bottom=ymin - 0.005, top=ymax)
+    def _save(fig, stem, exts):
+        paths = [os.path.join(output_dir, f'{stem}.{ext}') for ext in exts]
+        for p in paths:
+            fig.savefig(p, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        for p in paths:
+            print(f'Saved PESQ vs MERT-MSE tradeoff plot: {p}')
 
-    axes[1].set_xlabel(r'PESQ $\rightarrow$', fontsize=14)
+    # Stacked (2-row) variant: GenSVS on top, MSRBench on bottom.
+    fig_v, axes_v = plt.subplots(2, 1, figsize=(4.8, 7.2), sharex=True)
+    _draw_panel(axes_v[0], 'mert_mse_gensvs',   'GenSVS/EARS-WHAM',   is_msrbench=False, show_xlabel=False)
+    _draw_panel(axes_v[1], 'mert_mse_msrbench', 'MSRBench/EARS-WHAM', is_msrbench=True,  show_xlabel=True)
+    _add_legend(axes_v[0])
+    fig_v.tight_layout()
+    _save(fig_v, 'pesq_vs_mert_tradeoff', ('png', 'pdf', 'svg'))
 
-    handles, labels = axes[0].get_legend_handles_labels()
-    axes[0].legend(
-        handles, labels,
-        loc='center right',
-        bbox_to_anchor=(0.98, 0.60),
-        ncol=1,
-        frameon=True, facecolor='white', edgecolor='black', framealpha=1.0,
-        fontsize=14, borderaxespad=0.0, handletextpad=0.3,
-    )
-
-    fig.tight_layout()
-
-    png_path = os.path.join(output_dir, 'pesq_vs_mert_tradeoff.png')
-    pdf_path = os.path.join(output_dir, 'pesq_vs_mert_tradeoff.pdf')
-    fig.savefig(png_path, dpi=300, bbox_inches='tight')
-    fig.savefig(pdf_path, bbox_inches='tight')
-    plt.close(fig)
-    print(f'Saved PESQ vs MERT-MSE tradeoff plot: {png_path}')
-    print(f'Saved PESQ vs MERT-MSE tradeoff plot: {pdf_path}')
+    # Side-by-side (1x2) variant: GenSVS on the left, MSRBench on the right.
+    # SVG only, per request — this layout is not needed as png/pdf.
+    fig_h, axes_h = plt.subplots(1, 2, figsize=(9.6, 4.5))
+    _draw_panel(axes_h[0], 'mert_mse_gensvs',   'SVS/SE', is_msrbench=False, show_xlabel=True)
+    _draw_panel(axes_h[1], 'mert_mse_msrbench', 'SVR/SE', is_msrbench=True,  show_xlabel=True, show_ylabel=False)
+    _add_legend(axes_h[0])
+    fig_h.tight_layout()
+    _save(fig_h, 'pesq_vs_mert_tradeoff_side_by_side', ('svg',))
 
     # Restore rcParams
     mpl.rcParams['font.family']      = prev_font_family

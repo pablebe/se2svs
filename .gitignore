@@ -16,3 +16,4 @@ trash/*
 migrate_checkpoint_module_paths.py
 configs/config_melroformer_large.yaml
 *.zip
+TEMP/*
